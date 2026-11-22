@@ -281,8 +281,10 @@ function paintPlayer(){
   const jawBeat=chewing?Math.sin(t*2*Math.PI):0;
   let pose=0;
   if(digest>0){const progress=1-digest/digestionTime();pose=progress<.43?6:progress<.75?9:7;}
-  else if(chewing){pose=fullness>.82?6:(jawBeat>.18?5:1);}
-  else if(fullness>.76&&trail.length){pose=6;}
+  // Pose 6 has the completely stuffed cheeks and must NEVER appear at 7/8.
+  // Keep the character in a normal chewing/side pose until the eighth bite
+  // actually starts digestion, which also locks movement in nudgePlayer().
+  else if(chewing){pose=jawBeat>.18?5:1;}
   else if(moving||lastMoveClock>=0){pose=1;}
   if(pose!==avatarPose){prevAvatarPose=avatarPose;avatarPose=pose;avatarPoseChanged=clock;}
   const swell=digest>0?1.06:1+Math.min(.10,fullness*.10);
