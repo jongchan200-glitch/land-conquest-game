@@ -97,7 +97,11 @@ if(digest>0){digest=Math.max(0,digest-dt);if(digest===0){state.fullness=0;tickSo
 enemyUpdate(dt);acc+=dt;let dir=direction();if(autoOn&&autoPath.length)dir=autoPath[0];if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved)autoPath.shift();else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
 saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}}
 function finishStage(){if(transientFinish)return;transientFinish=true;playStarted=false;state.coins+=120;const ch=characters[(state.stage-1)%2],cardIndex=1;const key=ch.id+'_'+String(cardIndex).padStart(2,'0');if(state.album[key]){state.coins+=25;state.album[key]++;}else{state.album[key]=1}save();updateHUD();showPanel('complete')}
-function mapPosition(){const ps=player.phase;return {x:(player.ox+(player.x-player.ox)*ps+.5)*T,y:(player.oy+(player.y-player.oy)*ps+.5)*T}}
+function mapPosition(){
+  // A caterpillar does not glide at constant speed: it braces, stretches and pulls its rear up.
+  const t=clamp(player.phase,0,1),ps=t*t*(3-2*t);
+  return {x:(player.ox+(player.x-player.ox)*ps+.5)*T,y:(player.oy+(player.y-player.oy)*ps+.5)*T};
+}
 function cameraUpdate(dt){const cur=mapPosition(),progress=capture()/GOAL;const goalZoom=clamp(1.3-Math.min(1,progress)*.55+.028*(state.level-1),.74,1.38);cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*1.4);const towardX=screenW>WIDTH*goalZoom?WIDTH/2:cur.x+T*2.6,towardY=screenH>HEIGHT*goalZoom?HEIGHT/2:cur.y-T*.3;cam.x+=(towardX-cam.x)*Math.min(1,dt*4);cam.y+=(towardY-cam.y)*Math.min(1,dt*4)}
 function visibleRange(){const scale=cam.scale,left=(cam.x-screenW/(2*scale))/T,top=(cam.y-screenH/(2*scale))/T;return {x0:clamp(Math.floor(left)-1,0,CW-1),x1:clamp(Math.ceil(left+screenW/(scale*T))+2,0,CW),y0:clamp(Math.floor(top)-1,0,CH-1),y1:clamp(Math.ceil(top+screenH/(scale*T))+2,0,CH)}}
 function paintFloor(){ctx.fillStyle='#092a34';ctx.fillRect(0,0,screenW,screenH);const g=ctx.createLinearGradient(0,0,screenW,screenH);g.addColorStop(0,'#246163');g.addColorStop(.65,'#123c4a');g.addColorStop(1,'#0b2233');ctx.fillStyle=g;ctx.fillRect(0,0,screenW,screenH);ctx.strokeStyle='#b3f0d70a';ctx.lineWidth=1;for(let i=0;i<15;i++){ctx.beginPath();ctx.arc(screenW*.4,screenH*.48,i*75+clock*3,0,Math.PI*2);ctx.stroke()}}
@@ -155,43 +159,81 @@ function paintMonsters(){for(const e of enemy){const x=e.x*T,y=e.y*T,w=e.type===
 ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(0,0,w,w*.8,0,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#f3e9cd';ctx.beginPath();ctx.arc(-w*.27,-w*.2,w*.25,0,Math.PI*2);ctx.arc(w*.27,-w*.2,w*.25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#38292a';ctx.beginPath();ctx.arc(-w*.23,-w*.18,w*.1,0,Math.PI*2);ctx.arc(w*.29,-w*.18,w*.1,0,Math.PI*2);ctx.fill();ctx.restore()}}
 // AVATAR001 expression sheet is extracted from the user's approved Google Drive art.
 // This replaces only the rendering pose; game coordinates, collision and save remain unchanged.
+// Draw the approved side-view art as an articulated, soft 2D body.
+// The face stays unchanged. Front (left in source) reaches forward first;
+// ripples then travel along the belly; the tail catches up last.
+function paintCrawlPose(index,w,h,t,chewing){
+  const uT=clamp(t,0,1),envelope=Math.sin(Math.PI*uT);
+  const pulse=(a,b)=>{
+    const f=clamp((uT-a)/(b-a),0,1);
+    return Math.sin(Math.PI*f);
+  };
+  const headReach=-w*(chewing?.18:.155)*pulse(0,.78);
+  const tailCatch=-w*.145*pulse(.24,1);
+  const cellX=(index%4)*256,cellY=Math.floor(index/4)*256;
+  // The back has friction against the ground: it stays planted while the head
+  // reaches forward, and it catches up only after the middle contracts.
+  const smooth=v=>v*v*(3-2*v);
+  const travel=smooth(uT),rearTravel=smooth(clamp((uT-.36)/.64,0,1));
+  const tailHold=T*.87*Math.max(0,travel-rearTravel);
+  const posX=u=>-w*.5+w*u+headReach*Math.pow(1-u,1.25)+tailCatch*Math.pow(u,1.35)+tailHold*Math.pow(u,1.8);
+  // The face, eyes and thin mouth ring stay in ONE unwarped image.
+  // Only the abdomen is softly segmented to avoid artificial stripes over the face.
+  const bodyStart=128,headEnd=177,segments=15;
+  ctx.save();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  for(let i=0;i<segments;i++){
+    const a=bodyStart/256+(1-bodyStart/256)*i/segments;
+    const b=bodyStart/256+(1-bodyStart/256)*(i+1)/segments;
+    const u=(a+b)*.5;
+    const ripple=envelope*Math.sin(2*Math.PI*u-2.15*Math.PI*uT);
+    const lift=-4.8*ripple;
+    const shape=1+.09*envelope*Math.cos(2*Math.PI*(u-.75*uT));
+    const dh=h*shape,dy=-h*.56+lift+(h-dh)*.4;
+    const dx=posX(a),dw=posX(b)-dx+.7;
+    ctx.drawImage(wormAtlas,cellX+a*256,cellY,(b-a)*256,256,dx,dy,dw,dh);
+  }
+  // The head leads; a small nod mirrors a real larva bracing before the rear contracts.
+  const headLift=-3.8*Math.sin(Math.PI*uT)*Math.sin(2*Math.PI*uT);
+  ctx.drawImage(wormAtlas,cellX,cellY,headEnd,256,-w*.5+headReach,-h*.56+headLift,w*headEnd/256+.8,h);
+  ctx.restore();
+}
 function paintPlayer(){
   if(!player)return;
   const p=mapPosition(),levelScale=1+Math.min(.55,(state.level-1)*.065);
   const fullness=state.fullness/biteMax();
   const chewing=chewEffect>0&&digest<=0;
-  const moving=digest<=0&&(clock-lastMoveClock<(player.moveDuration||.26)+.04);
-  const mouthBeat=chewing?Math.sin((clock-lastMoveClock)*Math.PI*3/Math.max(.3,player.moveDuration||.62)):0;
+  const stepping=digest<=0&&player.phase<1;
+  const moving=stepping&&(clock-lastMoveClock<(player.moveDuration||.26)+.045);
+  const t=clamp(player.phase,0,1);
+  // The bite and the crawling wave are synchronized, not separate sprite shaking.
+  const jawBeat=chewing?Math.sin(t*2*Math.PI):0;
   let pose=0;
   if(digest>0){const progress=1-digest/digestionTime();pose=progress<.43?6:progress<.75?9:7;}
-  else if(chewing){pose=fullness>.82?6:(mouthBeat>-.12?5:1);}
+  else if(chewing){pose=fullness>.82?6:(jawBeat>.18?5:1);}
   else if(fullness>.76&&trail.length){pose=6;}
-  else if(moving){pose=player.dirY<0?2:player.dirY>0?0:1;}
+  else if(moving||lastMoveClock>=0){pose=1;}
   if(pose!==avatarPose){prevAvatarPose=avatarPose;avatarPose=pose;avatarPoseChanged=clock;}
   const swell=digest>0?1.06:1+Math.min(.10,fullness*.10);
   const sz=65*levelScale*swell;
-  const moveStretch=player.phase<1&&digest<=0?Math.sin(player.phase*Math.PI):0;
-  const bounce=digest>0?0:chewing?Math.abs(mouthBeat)*.35:moving?moveStretch*.55:Math.sin(clock*2.5)*.16;
-  const bitePhase=chewing?clamp((clock-lastMoveClock)/(player.moveDuration||.62),0,1):0;
-  const headLunge=chewing?Math.pow(Math.sin(bitePhase*Math.PI*2.4),2)*2.1:0;
-  ctx.save();ctx.translate(p.x+player.dirX*headLunge,p.y+player.dirY*headLunge+bounce);
-  // Side-frame artworks point LEFT. Rotate/flip the ORIGINAL source to face where it is chewing.
-  // Screen directions: east=mirror X, west=none, north=+90 degrees, south=-90 degrees.
+  // During digestion the animation is strictly stationary; only the gulp pose changes.
+  const bodyBob=digest>0?0:moving?-1.1*Math.sin(t*Math.PI):0;
+  ctx.save();ctx.translate(p.x,p.y+bodyBob);
   const facesSide=pose===1||pose===5;
+  // Approved side-view art faces left; turn the ORIGINAL toward actual direction of travel.
   if(facesSide){if(player.dirY<0)ctx.rotate(Math.PI/2);else if(player.dirY>0)ctx.rotate(-Math.PI/2);else if(player.dirX>0)ctx.scale(-1,1);}
-  if(digest<=0&&chewing)ctx.scale(1+mouthBeat*.016,1-mouthBeat*.02);
   if(blink>0){ctx.shadowColor='#ff5e5e';ctx.shadowBlur=18;}else{ctx.shadowColor='#09171b';ctx.shadowBlur=9;}
   ctx.shadowOffsetY=4;
   const targetScale=pose===6?1.17:pose===9?1.09:pose===5?1.04:1;
   const w=sz*1.15*targetScale,h=sz*1.15*targetScale;
-  const drawPose=(index,opacity)=>{ctx.globalAlpha=opacity;ctx.drawImage(wormAtlas,(index%4)*256,Math.floor(index/4)*256,256,256,-w*.5,-h*.56,w,h);};
+  const drawPose=(index,opacity)=>{
+    ctx.globalAlpha=opacity;
+    if(facesSide&&stepping&&(index===1||index===5))paintCrawlPose(index,w,h,t,chewing);
+    else ctx.drawImage(wormAtlas,(index%4)*256,Math.floor(index/4)*256,256,256,-w*.5,-h*.56,w,h);
+  };
   if(wormAtlas.complete&&wormAtlas.naturalWidth===1024){
-    const transition=Math.min(1,(clock-avatarPoseChanged)/.11);
-    // Never blend side/front poses during a directional chew; blend only matching facial poses.
-    if(transition<1&&((pose===1&&prevAvatarPose===5)||(pose===5&&prevAvatarPose===1)||prevAvatarPose===pose)){
-      drawPose(prevAvatarPose,1-transition);ctx.shadowBlur=0;
-    }
-    drawPose(pose,transition<1&&prevAvatarPose!==pose&&prevAvatarPose!==1&&prevAvatarPose!==5?1:transition);
+    // Keep every face opaque. Crossfading two warped whole-body images created
+    // ghost eyes and striping; a bite is a distinct jaw movement instead.
+    drawPose(pose,1);
   }else if(worm.complete&&worm.naturalWidth){ctx.drawImage(worm,-sz*.55,-sz*.57,sz*1.1,sz*1.05);}
   else{ctx.fillStyle='#f2c18d';ctx.beginPath();ctx.arc(0,0,sz*.42,0,Math.PI*2);ctx.fill();}
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
