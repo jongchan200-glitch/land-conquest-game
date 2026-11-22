@@ -54,3 +54,8 @@
 @media(max-height:720px){.home-layout{padding-top:max(7px,env(safe-area-inset-top))}.home-title{padding-top:3px}.home-title h1{font-size:38px}.home-title p{font-size:9px}.home-showcase{min-height:115px}.home-summary{height:38px;margin-bottom:7px}.home-play{height:59px}.home-play-copy strong{font-size:19px}.home-nav{margin-top:7px}.home-nav button{gap:3px}.home-bottom{padding-top:4px}.home-indicator{margin-top:4px}}
 @media(max-height:575px){.home-title h1{font-size:31px}.home-title{padding-top:0}.home-kicker{font-size:8px}.home-header{min-height:38px}.home-account{height:36px}.home-avatar{width:30px;height:30px}.home-wallet{height:36px}.home-summary{height:33px}.home-nav button svg{height:18px;width:18px}.home-nav button span{font-size:10px}.home-play{height:53px}}
 @media(prefers-reduced-motion:reduce){.home-world,.home-play:before{animation:none!important}}
+
+/* V0.2.11: approved cute home reference: quieter scale, warm little avatar. */
+#homeModelCanvas{transform:scale(.79);transform-origin:center center}
+.home-model-wrap{inset:-1% 4% 9%}
+.home-halo{opacity:.72}

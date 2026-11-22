@@ -68,27 +68,27 @@
   }
   // All the parts are closed meshes. The back and underside remain volumetric
   // through a full 360-degree orbit (no paper-thin image transformation).
-  sphere(0,.49,-1.36,.44,.44,.51,palette.body);
-  sphere(0,.47,-.89,.61,.48,.62,palette.fold);
-  sphere(0,.50,-.80,.66,.49,.64,palette.body);
+  sphere(0,.48,-1.48,.32,.32,.37,palette.body);
+  sphere(0,.47,-1.02,.46,.39,.48,palette.fold);
+  sphere(0,.50,-.79,.58,.46,.62,palette.body);
   sphere(0,.50,-.33,.73,.53,.70,palette.fold);
   sphere(0,.52,-.24,.76,.54,.70,palette.front);
-  sphere(0,.86,.52,.80,.91,.77,palette.skin,22,32);
+  sphere(0,.84,.52,.78,.84,.77,palette.skin,22,32);
   // Gentle cheeks, matching the approved peach/cream artwork.
   sphere(-.55,.52,1.13,.145,.116,.035,palette.cheek);
   sphere(.55,.52,1.13,.145,.116,.035,palette.cheek);
   // Large pearly eyes with pupils that have their own curvature from all angles.
   for(const sign of [-1,1]){
-    sphere(sign*.34,1.23,1.105,.285,.357,.18,palette.lip);
-    sphere(sign*.34,1.245,1.135,.273,.34,.18,palette.white,18,24);
-    sphere(sign*.34,1.185,1.30,.127,.17,.075,palette.iris);
-    sphere(sign*.34,1.186,1.359,.082,.123,.045,palette.pupil);
-    sphere(sign*.31,1.253,1.401,.041,.052,.019,palette.white);
+    sphere(sign*.31,1.20,1.033,.253,.298,.109,palette.lip);
+    sphere(sign*.31,1.216,1.057,.246,.286,.108,palette.white,18,24);
+    sphere(sign*.31,1.170,1.167,.110,.136,.051,palette.iris);
+    sphere(sign*.31,1.170,1.210,.076,.107,.034,palette.pupil);
+    sphere(sign*.295,1.231,1.234,.037,.042,.016,palette.white);
   }
   // Signature: TWO subtle, round whisker outlines circling the mouth.
   // These are 3D raised rings, not a painted smile or a flattened billboard.
   // Keep the inner mouth SMALL/CLOSED at rest; the ring belongs to the character.
-  sphere(0,.47,1.230,.27,.285,.085,palette.front,20,30);
+  sphere(0,.47,1.206,.245,.252,.075,palette.front,20,30);
   const whiskerRing=(rx,ry,z,r,color)=>{
     const points=[];
     for(let k=0;k<=40;k++){
@@ -97,8 +97,7 @@
     }
     tube(points,r,color);
   };
-  whiskerRing(.258,.258,1.316,.019,palette.mouth);
-  whiskerRing(.224,.226,1.332,.012,palette.lip);
+  whiskerRing(.235,.235,1.309,.012,palette.mouth);
   // Two tiny corners and a relaxed, closed smile within the round whisker.
   tube([[-.090,.464,1.350],[-.046,.451,1.354],[0,.441,1.356],[.046,.451,1.354],[.090,.464,1.350]],.012,palette.mouth);
   // A curved antenna with a rounded bulb rather than an endlessly flat icon.
@@ -120,7 +119,7 @@
   uProj=gl.getUniformLocation(prog,'uProj');uYaw=gl.getUniformLocation(prog,'uYaw');uPitch=gl.getUniformLocation(prog,'uPitch');uBob=gl.getUniformLocation(prog,'uBob');
   }
   const cpu=software?canvas.getContext('2d',{alpha:true}):null;
-  let yaw=0.42,pitch=0.035,dragged=false,dragID=null,lastX=0,lastY=0,velocity=0,dirty=true,showBadge=false,frameCount=0;
+  let yaw=-0.68,pitch=0.035,dragged=false,dragID=null,lastX=0,lastY=0,velocity=0,dirty=true,showBadge=false,frameCount=0;
   let lastT=0;
   const model={active:true,setBadge(b){showBadge=!!b},getYaw:()=>yaw,setYaw(a){yaw=a;velocity=0},getPitch:()=>pitch,getFrameCount:()=>frameCount};
   window.home3D=model;
