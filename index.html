@@ -210,7 +210,9 @@ function moveAnalog(dir,dt){
   const from=world[at(player.x,player.y)];
   // First stage: slow, grounded creeping. Returning through an already eaten
   // passage is free movement, whereas eating NEW material requires the action.
-  const speed=from===OWN?3.25:2.35; // cells/second; balanced separately from chewing cadence
+  // Outside: creep through each edible cell instead of sprinting to its edge
+  // and visibly freezing for most of a second. Total time per cell stays slow.
+  const speed=from===OWN?3.25:Math.min(3.9,1.22+(state.level-1)*.055+(state.upgrades.speed||0)*.12);
   const stride=Math.min(.12,dt*speed);
   let nx=clamp(player.wx+ux*stride,.006,CW-.006),ny=clamp(player.wy+uy*stride,.006,CH-.006);
   const tx=Math.floor(nx),ty=Math.floor(ny);
@@ -226,7 +228,11 @@ function moveAnalog(dir,dt){
       const targetId=at(tx,ty);if(biteTarget!==targetId){biteTarget=targetId;biteCharge=0}
       biteCharge+=dt;
       chewEffect=Math.max(chewEffect,Math.min(.24,chewDelay()));
-      if(biteCharge<chewDelay())return false;
+      // The old .62s pause happened AT EVERY tile edge, producing jerky
+      // stop-and-go locomotion. Most of the bite now happens while creeping;
+      // keep a short tactile bite at the boundary to retain the eating rule.
+      const nibblePause=Math.min(chewDelay(),from===OWN?.32:.105);
+      if(biteCharge<nibblePause)return false;
     }else {biteCharge=0;biteTarget=-1}
     const px=player.x,py=player.y,dx=tx-px,dy=ty-py;
     if(Math.abs(dx)>1||Math.abs(dy)>1)return false;
@@ -305,8 +311,12 @@ function cameraUpdate(dt){
     const l=Math.min(...xs),r=Math.max(...xs),t=Math.min(...ys),b=Math.max(...ys);
     const fitX=(screenW-66)/Math.max(190,r-l+T*3.4);
     const fitY=(screenH-230)/Math.max(230,b-t+T*4.5);
-    goalZoom=Math.min(goalZoom,clamp(Math.min(fitX,fitY),.64,1.38));
-    targetX=(l+r)/2;targetY=(t+b)/2;
+    const mix=clamp((bodyTotal-.65)/2.9,0,1);
+    const blend=mix*mix*(3-2*mix);
+    const zoom=clamp(Math.min(fitX,fitY),.64,1.38);
+    goalZoom+=(Math.min(goalZoom,zoom)-goalZoom)*blend;
+    targetX+=((l+r)/2-targetX)*blend;
+    targetY+=((t+b)/2-targetY)*blend;
   }
   cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*2.1);
   cam.x+=(targetX-cam.x)*Math.min(1,dt*3.1);
@@ -406,79 +416,104 @@ function paintCrawlPose(index,w,h,t,chewing){
   ctx.drawImage(wormAtlas,cellX,cellY,headEnd,256,-w*.5+headReach,-h*.56+headLift,w*headEnd/256+.8,h);
   ctx.restore();
 }
+// O(N) path evaluation: the old implementation walked the entire path three
+// times for EACH sampled vertex. On a phone that was visibly dropping frames.
 function bodyVisualLine(){
-  let raw=bodyLine;
-  if(bodyJoin&&bodyJoin.life>0)raw=bodyJoin.line;
+  const raw=bodyJoin&&bodyJoin.life>0?bodyJoin.line:bodyLine;
   if(!raw||raw.length<2)return null;
-  let len=lineLen(raw);
+  const cumulative=new Float32Array(raw.length);
+  let len=0;
+  for(let i=1;i<raw.length;i++){
+    const a=raw[i-1],b=raw[i];
+    len+=Math.hypot(b.x-a.x,b.y-a.y);
+    cumulative[i]=len;
+  }
   if(len<.08)return null;
-  let pts=[];
-  const count=Math.min(260,Math.max(14,Math.ceil(len*T/3.6)));
+  // Cap the vertex count; fewer, correctly placed samples outperform hundreds
+  // of individually re-traversed points on Android canvas.
+  const count=Math.min(136,Math.max(16,Math.ceil(len*T/5.5)));
+  let pts=[],segment=1;
   for(let i=0;i<=count;i++){
-    const u=i/count,z=pointOnLine(raw,len*u),p0=pointOnLine(raw,len*Math.max(0,u-.005)),p1=pointOnLine(raw,len*Math.min(1,u+.005));
-    let dx=p1.x-p0.x,dy=p1.y-p0.y,m=Math.hypot(dx,dy)||1,nx=-dy/m,ny=dx/m;
-    const wave=Math.sin(clock*8.4-u*23.5)*1.55*Math.sin(u*Math.PI);
-    pts.push({x:z.x*T+nx*wave,y:z.y*T+ny*wave,nx,ny,u});
+    const u=i/count,d=u*len;
+    while(segment<raw.length-1&&cumulative[segment]<d)segment++;
+    const a=raw[segment-1],b=raw[segment];
+    const span=cumulative[segment]-cumulative[segment-1];
+    const t=span>1e-6?(d-cumulative[segment-1])/span:0;
+    pts.push({x:(a.x+(b.x-a.x)*t)*T,y:(a.y+(b.y-a.y)*t)*T,u});
   }
-  // Densely sampled paths are rounded softly at sharp joystick turns.
-  // Endpoints stay exact, keeping the tail planted and the head connected.
+  // A mild smoothing pass rounds true joystick bends without straightening
+  // deliberate turns. The fixed end points keep the anchored tail and head.
   for(let pass=0;pass<2;pass++){
-    const mid=pts.map(q=>({...q}));
-    for(let i=2;i<pts.length-2;i++){
-      mid[i].x=(pts[i-2].x+2*pts[i-1].x+4*pts[i].x+2*pts[i+1].x+pts[i+2].x)/10;
-      mid[i].y=(pts[i-2].y+2*pts[i-1].y+4*pts[i].y+2*pts[i+1].y+pts[i+2].y)/10;
+    const q=pts.map(v=>({...v}));
+    for(let i=1;i<count;i++){
+      q[i].x=pts[i].x*.64+(pts[i-1].x+pts[i+1].x)*.18;
+      q[i].y=pts[i].y*.64+(pts[i-1].y+pts[i+1].y)*.18;
     }
-    pts=mid;
+    pts=q;
   }
-  for(let i=0;i<pts.length;i++){
-    const a=pts[Math.max(i-1,0)],b=pts[Math.min(i+1,pts.length-1)];
-    const dx=b.x-a.x,dy=b.y-a.y,n=Math.hypot(dx,dy)||1;
-    pts[i].nx=-dy/n;pts[i].ny=dx/n;
+  const time=clock*6.1;
+  for(let i=0;i<=count;i++){
+    const a=pts[Math.max(0,i-1)],b=pts[Math.min(count,i+1)];
+    const dx=b.x-a.x,dy=b.y-a.y,mag=Math.hypot(dx,dy)||1;
+    const nx=-dy/mag,ny=dx/mag;
+    const wave=Math.sin(time-i/count*19.5)*.9*Math.sin(Math.PI*i/count);
+    pts[i].x+=nx*wave;pts[i].y+=ny*wave;
+    pts[i].nx=nx;pts[i].ny=ny;
   }
   return pts;
 }
 function paintStretchedBody(){
   const pts=bodyVisualLine();if(!pts)return;
   const fading=bodyJoin?clamp(bodyJoin.life/bodyJoin.total,0,1):1;
-  const front=pts[pts.length-1],back=pts[0];
+  const back=pts[0],front=pts[pts.length-1];
   const bulges=gutBoluses.filter(g=>g.time>=0).map(g=>({u:1-clamp(g.time/g.duration,0,1),size:1-clamp(g.time/g.duration,0,1)}));
   const radius=(u)=>{
-    let r=10.2+7.6*Math.pow(Math.sin(Math.PI*u*.83),.7);
-    for(const b of bulges){let dist=Math.abs(u-b.u);r+=11.6*(.4+.6*b.size)*Math.exp(-dist*dist/(.0012));}
+    // The rear is tapering, the front blends INTO the existing approved head.
+    let r=12+5.8*Math.pow(Math.sin(Math.PI*u*.85),.75)+4.2*Math.pow(u,2.5);
+    r*=1+.023*Math.sin(clock*6.1-u*19);
+    for(const b of bulges){const d=Math.abs(u-b.u);r+=10.2*(.42+.58*b.size)*Math.exp(-d*d/.0015);}
     return r;
   };
   ctx.save();ctx.globalAlpha*=fading;
-  ctx.shadowColor='rgba(57,27,18,.6)';ctx.shadowBlur=11;ctx.shadowOffsetX=1;ctx.shadowOffsetY=5;
+  ctx.shadowColor='rgba(75,41,24,.27)';ctx.shadowBlur=7;ctx.shadowOffsetY=3;
   ctx.beginPath();
   for(let i=0;i<pts.length;i++){
-    const p=pts[i],r=radius(p.u),x=p.x+p.nx*r,y=p.y+p.ny*r;
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    const p=pts[i],r=radius(p.u);
+    if(i===0)ctx.moveTo(p.x+p.nx*r,p.y+p.ny*r);
+    else ctx.lineTo(p.x+p.nx*r,p.y+p.ny*r);
   }
   for(let i=pts.length-1;i>=0;i--){const p=pts[i],r=radius(p.u);ctx.lineTo(p.x-p.nx*r,p.y-p.ny*r);}
   ctx.closePath();
-  const gradient=ctx.createLinearGradient(back.x-12,back.y-7,front.x+14,front.y+14);
-  gradient.addColorStop(0,'#d28d63');gradient.addColorStop(.24,'#eab58a');gradient.addColorStop(.55,'#f4c699');gradient.addColorStop(.78,'#f9d0a6');gradient.addColorStop(1,'#eab48d');
-  ctx.fillStyle=gradient;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.shadowOffsetX=0;
-  ctx.strokeStyle='rgba(139,75,49,.38)';ctx.lineWidth=1.4;ctx.stroke();
-  // Subtle translucent upper light strip adds dimension without looking like rope.
+  // Skin colors sampled/approximated from the unchanged face source asset.
+  const mid=pts[Math.floor(pts.length/2)];
+  const grad=ctx.createLinearGradient(mid.x+mid.nx*25,mid.y+mid.ny*25,mid.x-mid.nx*25,mid.y-mid.ny*25);
+  grad.addColorStop(0,'#ffe3be');grad.addColorStop(.46,'#f9cda5');grad.addColorStop(1,'#eaaa80');
+  ctx.fillStyle=grad;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  ctx.strokeStyle='rgba(173,105,73,.17)';ctx.lineWidth=1.1;ctx.stroke();
+  // Curved highlights shade the body across its thickness as the path bends.
   ctx.beginPath();for(let i=0;i<pts.length;i++){
-    const p=pts[i],r=radius(p.u),x=p.x+p.nx*r*.67,y=p.y+p.ny*r*.67;
+    const p=pts[i],r=radius(p.u),x=p.x+p.nx*r*.65,y=p.y+p.ny*r*.65;
     if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-  }ctx.strokeStyle='rgba(255,248,212,.32)';ctx.lineWidth=3.1;ctx.stroke();
-  // Soft compression rings travel slowly across the stretched caterpillar body.
-  for(let u=.045;u<.95;u+=.065){
-    const idx=Math.min(pts.length-2,Math.round(u*(pts.length-1))),p=pts[idx],r=radius(p.u);
-    const squeeze=.4+.35*Math.sin(clock*6.4-u*22);
-    ctx.beginPath();ctx.moveTo(p.x-p.nx*r*.81,p.y-p.ny*r*.81);
-    ctx.quadraticCurveTo(p.x+3,p.y+3,p.x+p.nx*r*.86,p.y+p.ny*r*.86);
-    ctx.strokeStyle='rgba(160,90,58,'+(squeeze*.19).toFixed(3)+')';ctx.lineWidth=1.8;ctx.stroke();
   }
-  // The visible bolus is embedded *in* the swollen tube, never a floating ball.
+  ctx.strokeStyle='rgba(255,245,220,.26)';ctx.lineWidth=4;ctx.stroke();
+  ctx.beginPath();for(let i=0;i<pts.length;i++){
+    const p=pts[i],r=radius(p.u),x=p.x-p.nx*r*.84,y=p.y-p.ny*r*.84;
+    if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='rgba(189,107,78,.13)';ctx.lineWidth=3;ctx.stroke();
+  // Tiny soft folds, rather than hard stripes around a rubber hose.
+  for(let u=.085;u<.91;u+=.10){
+    const p=pts[Math.round(u*(pts.length-1))],r=radius(p.u);
+    const alpha=(.10+.055*Math.sin(clock*6.1-u*19)).toFixed(3);
+    ctx.beginPath();ctx.moveTo(p.x-p.nx*r*.58,p.y-p.ny*r*.58);
+    ctx.quadraticCurveTo(p.x-1.7,p.y-1.7,p.x+p.nx*r*.64,p.y+p.ny*r*.64);
+    ctx.strokeStyle='rgba(175,102,78,'+alpha+')';ctx.lineWidth=1.4;ctx.stroke();
+  }
   for(const b of bulges){
     const p=pts[Math.round(b.u*(pts.length-1))],r=radius(p.u);
-    const g=ctx.createRadialGradient(p.x-4,p.y-5,0,p.x,p.y,r*.85);
-    g.addColorStop(0,'rgba(255,233,182,.44)');g.addColorStop(.78,'rgba(255,209,148,.13)');g.addColorStop(1,'rgba(239,166,116,0)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,r*.8,0,2*Math.PI);ctx.fill();
+    const g=ctx.createRadialGradient(p.x-3,p.y-4,0,p.x,p.y,r);
+    g.addColorStop(0,'rgba(255,234,201,.36)');g.addColorStop(1,'rgba(245,188,134,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
   }
   ctx.restore();
 }
@@ -488,54 +523,83 @@ function paintGas(){
     ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.restore();}
 }
 
+// Fade the original sprite's rear silhouette INTO the procedural body.
+// Never modify or regenerate the approved art file itself.
+let approvedHeadOnly=null;
+function headTexture(){
+  if(approvedHeadOnly||!wormAtlas.complete||wormAtlas.naturalWidth!==1024)return approvedHeadOnly;
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const g=c.getContext('2d');g.drawImage(wormAtlas,256,0,256,256,0,0,256,256);
+  const pixels=g.getImageData(0,0,256,256),data=pixels.data;
+  // Cut only the original HEAD, not the 2+ tail segments in the reference.
+  // This soft anatomical join is much shorter than the old 63px grey band.
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+    const at=(y*256+x)*4,r=data[at],green=data[at+1],blue=data[at+2];
+    const neck=clamp((167-x)/24,0,1);
+    // Suppress the ground shadow embedded in the 3D sprite photo.
+    const floorShadow=y>209&&r<217&&Math.abs(r-green)<18&&Math.abs(green-blue)<18;
+    const noGround=clamp((236-y)/13,0,1);
+    data[at+3]=Math.round(data[at+3]*(floorShadow?0:neck)*noGround);
+  }
+  g.putImageData(pixels,0,0);
+  approvedHeadOnly=c;return c;
+}
 function paintPlayer(){
   if(!player)return;
   const p=mapPosition(),levelScale=1+Math.min(.55,(state.level-1)*.065);
   const fullness=state.fullness/biteMax();
   const chewing=chewEffect>0&&digest<=0;
+  const extended=bodyLine.length>1&&bodyTotal>.08;
   const stepping=digest<=0&&player.phase<1;
   const moving=stepping&&(clock-lastMoveClock<(player.moveDuration||.26)+.045);
   const t=clamp(player.phase,0,1);
-  // The bite and the crawling wave are synchronized, not separate sprite shaking.
-  const jawBeat=chewing?Math.sin(t*2*Math.PI):0;
+  // Avoid abruptly switching between two unrelated whole-body drawings while
+  // stretched: the preserved side head is continuous through walk, chew, gulp.
   let pose=0;
-  if(digest>0){const progress=1-digest/digestionTime();pose=progress<.43?6:progress<.75?9:7;}
-  // Pose 6 has the completely stuffed cheeks and must NEVER appear at 7/8.
-  // Keep the character in a normal chewing/side pose until the eighth bite
-  // actually starts digestion, which also locks movement in nudgePlayer().
-  else if(chewing){pose=jawBeat>.18?5:1;}
-  else if(bodyLine.length||moving||lastMoveClock>=0){pose=1;}
+  if(!extended){
+    if(digest>0){const progress=1-digest/digestionTime();pose=progress<.43?6:progress<.75?9:7;}
+    else if(chewing){pose=Math.sin(t*2*Math.PI)>.18?5:1;}
+    else if(moving||lastMoveClock>=0){pose=1;}
+  }else pose=1;
   if(pose!==avatarPose){prevAvatarPose=avatarPose;avatarPose=pose;avatarPoseChanged=clock;}
   const swell=digest>0?1.06:1+Math.min(.10,fullness*.10);
-  const sz=(bodyLine.length?59:65)*levelScale*swell;
-  // During digestion the animation is strictly stationary; only the gulp pose changes.
-  const bodyBob=digest>0?0:moving?-1.1*Math.sin(t*Math.PI):0;
-  ctx.save();ctx.translate(p.x,p.y+bodyBob);
-  const facesSide=pose===1||pose===5||pose===6||pose===7||pose===9;
-  // Approved side-view art faces left; turn the ORIGINAL toward actual direction of travel.
+  const sz=(extended?61:65)*levelScale*swell;
+  const crawl=player.walkCycle||0;
+  const bob=extended?(digest>0?0:Math.sin(crawl*Math.PI*2)*.65):digest>0?0:moving?-1.1*Math.sin(t*Math.PI):0;
+  ctx.save();ctx.translate(p.x,p.y+bob);
+  const facesSide=extended||pose===1||pose===5||pose===6||pose===7||pose===9;
   if(facesSide){
-    // The source side-view faces LEFT. Turn that same approved art through any
-    // joystick heading, without snapping to 4 cardinal angles.
-    const a=Number.isFinite(player.turnAngle)?player.turnAngle:Math.atan2(player.dirY,player.dirX);
-    if(Math.cos(a)>=0){ctx.rotate(a);ctx.scale(-1,1)}
-    else {ctx.rotate(Math.atan2(Math.sin(a-Math.PI),Math.cos(a-Math.PI)))}
+    // Match the head to the actual tangent of the drawn body, not a lagging
+    // joystick heading. The tail-to-head connection then remains continuous.
+    let a=Number.isFinite(player.turnAngle)?player.turnAngle:Math.atan2(player.dirY,player.dirX);
+    if(extended&&bodyLine.length>2){
+      const n=bodyLine.length,tip=bodyLine[n-1],rear=bodyLine[Math.max(0,n-7)];
+      const dx=tip.x-rear.x,dy=tip.y-rear.y;
+      if(Math.hypot(dx,dy)>.04)a=Math.atan2(dy,dx);
+    }
+    if(Math.cos(a)>=0){ctx.rotate(a);ctx.scale(-1,1);}
+    else ctx.rotate(Math.atan2(Math.sin(a-Math.PI),Math.cos(a-Math.PI)));
   }
-  if(blink>0){ctx.shadowColor='#ff5e5e';ctx.shadowBlur=18;}else{ctx.shadowColor='#09171b';ctx.shadowBlur=9;}
-  ctx.shadowOffsetY=4;
+  if(blink>0){ctx.shadowColor='#ff5e5e';ctx.shadowBlur=15;}
+  else {ctx.shadowColor='#09171b';ctx.shadowBlur=extended?3:9;}
+  ctx.shadowOffsetY=extended?1:4;
   const targetScale=pose===6?1.17:pose===9?1.09:pose===5?1.04:1;
   const w=sz*1.15*targetScale,h=sz*1.15*targetScale;
-  const drawPose=(index,opacity)=>{
-    ctx.globalAlpha=opacity;
-    if(facesSide&&stepping&&(index===1||index===5))paintCrawlPose(index,w,h,t,chewing);
-    else ctx.drawImage(wormAtlas,(index%4)*256,Math.floor(index/4)*256,256,256,-w*.5,-h*.56,w,h);
-  };
-  if(wormAtlas.complete&&wormAtlas.naturalWidth===1024){
-    // Keep every face opaque. Crossfading two warped whole-body images created
-    // ghost eyes and striping; a bite is a distinct jaw movement instead.
-    drawPose(pose,1);
+  if(extended&&headTexture()){
+    // Only the head of the SAME approved sprite; no second duplicate tail.
+    // The tiny motion is continuous even when a chewing tile takes .62s.
+    const chewPhase=chewing?Math.sin(clock*13.3)*.028:0;
+    const gulpPhase=digest>0?Math.sin((1-digest/.64)*Math.PI)*.07:0;
+    const bend=chewPhase+gulpPhase;
+    ctx.translate(0,-bend*3.2);
+    ctx.scale(1+bend*.24,1-bend*.17);
+    ctx.drawImage(approvedHeadOnly,-w*.5,-h*.56,w,h);
+  }else if(wormAtlas.complete&&wormAtlas.naturalWidth===1024){
+    if(facesSide&&stepping&&(pose===1||pose===5))paintCrawlPose(pose,w,h,t,chewing);
+    else ctx.drawImage(wormAtlas,(pose%4)*256,Math.floor(pose/4)*256,256,256,-w*.5,-h*.56,w,h);
   }else if(worm.complete&&worm.naturalWidth){ctx.drawImage(worm,-sz*.55,-sz*.57,sz*1.1,sz*1.05);}
-  else{ctx.fillStyle='#f2c18d';ctx.beginPath();ctx.arc(0,0,sz*.42,0,Math.PI*2);ctx.fill();}
-  ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
+  else {ctx.fillStyle='#f2c18d';ctx.beginPath();ctx.arc(0,0,sz*.42,0,Math.PI*2);ctx.fill();}
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
 function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintMonsters();paintStretchedBody();paintFX();paintGas();paintPlayer();ctx.restore();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
