@@ -35,7 +35,7 @@
 <div id="top"><div id="progress" class="glass"><div class="progressTop"><span id="stageTitle">STAGE 01 · LAND</span><b id="capturePct">0%</b></div><div class="progressRail"><div id="progressFill"></div></div></div><div id="stats"><div class="stat glass"><small>Lv</small><strong id="lv">1</strong></div><div class="stat glass"><small>코인</small><strong id="coins">0</strong></div><div class="stat glass"><small>♥</small><strong id="hearts">3</strong></div></div><button id="menuBtn" class="iconbtn glass" aria-label="메뉴 열기">☰</button></div>
 <div id="mouth" class="glass"><div class="mouthhead"><span id="mouthLabel">입 안의 여유</span><b id="mouthValue">0 / 8</b></div><div id="mouthRail"><div id="mouthFill"></div></div><div class="mouthhead" id="stretchLine"><span>몸 길이</span><b id="stretchValue">0 / 15</b></div><div id="stretchRail"><div id="stretchFill"></div></div></div>
 <div id="tip" role="status"></div><canvas id="mini" width="136" height="192"></canvas>
-<div id="controls"><div id="joy" aria-label="가상 조이스틱" role="application"><div class="joyrim"></div><div class="joywell"></div><div class="joystickKnob" id="knob"></div></div><button id="act" aria-label="액션 버튼"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><path d="M30 7L36 24 53 30 36 36 30 53 24 36 7 30 24 24Z" fill="#fff2cb" stroke="#fff6da" stroke-width="2"/><circle cx="30" cy="30" r="5" fill="#c27c42"/></svg></button></div><div id="bottomStrip">조이스틱으로 이동 · 버튼을 누른 채 미점령 판 절단 · 점령 면적은 임시 테스트값</div>
+<div id="controls"><div id="joy" aria-label="가상 조이스틱" role="application"><div class="joyrim"></div><div class="joywell"></div><div class="joystickKnob" id="knob"></div></div><button id="act" aria-label="액션 버튼"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><path d="M30 7L36 24 53 30 36 36 30 53 24 36 7 30 24 24Z" fill="#fff2cb" stroke="#fff6da" stroke-width="2"/><circle cx="30" cy="30" r="5" fill="#c27c42"/></svg></button></div><div id="bottomStrip">조이스틱 이동 · 버튼 한 번 = 한 입 앙! · 길게 누르면 연속 갉아먹기</div>
 <div id="overlay" class="open"><section class="sheet" id="sheet" aria-live="polite"></section></div><section id="landHome" class="land-lobby" aria-label="땅따먹기 홈 화면" hidden>
   <div class="home-world"></div><div class="home-ambient"></div><div class="home-vignette"></div>
   <svg style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -98,11 +98,25 @@ let lastPlayerSnapshot=null;
 // x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
 const analogCenter=()=>{player.wx=player.x+.5;player.wy=player.y+.5;player.analog=false;player.turnAngle=Math.atan2(player.dirY,player.dirX);player.walkCycle=0};
 let biteCharge=0,biteTarget=-1;
+// One short button tap is one complete bite, even if the thumb leaves the
+// action button before the character reaches the next crumb of cracker.
+let tapGrace=null,tapFollow=null,biteMotion=null,actionPressedAt=0,actionStartFull=0;
+const biteVisual=()=>{
+  if(!biteMotion)return 0;
+  const u=clamp((clock-biteMotion.start)/biteMotion.duration,0,1);
+  if(u>=1)return 0;
+  // The mouth opens with a FORWARD lunge, briefly closes for the crunch,
+  // opens once more for a small second chew, then settles completely shut.
+  const first=Math.max(0,Math.sin(Math.PI*Math.min(1,u/.70)));
+  const second=u>.57?Math.max(0,Math.sin(Math.PI*(u-.57)/.43))*.35:0;
+  return Math.max(0,Math.min(1,first+second));
+};
+const startBiteVisual=(duration=.68)=>{biteMotion={start:clock,duration}};
 // v0.2.6 — The body is attached to OWN territory while cutting. All geometry is
 // maintained in continuous grid coordinates, independent of old tile ownership.
 let bodyLine=[],bodyAnchor=null,bodyTotal=0,recoil=null,gutBoluses=[],gasPuffs=[],fartCount=0,bodyJoin=null;
 const bodyMax=()=>15+(state.level-1)*2+(state.upgrades.length||0)*3;
-const resetBody=()=>{bodyLine=[];bodyAnchor=null;bodyTotal=0;recoil=null;bodyJoin=null;};
+const resetBody=()=>{bodyLine=[];bodyAnchor=null;bodyTotal=0;recoil=null;bodyJoin=null;tapGrace=null;tapFollow=null;biteMotion=null;};
 const lineLen=a=>{let n=0;for(let i=1;i<a.length;i++)n+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y);return n;};
 const pointOnLine=(arr,len)=>{
   if(!arr.length)return null;
@@ -152,7 +166,7 @@ function startRecoil(){
   if(recoil||!bodyLine.length)return;
   const track=bodyLine.map(p=>({...p})),length=lineLen(track);
   recoil={track,length,elapsed:0,duration:Math.min(2.4,.58+length*.082)};
-  biteCharge=0;biteTarget=-1;chewEffect=0;
+  biteCharge=0;biteTarget=-1;chewEffect=0;tapGrace=null;tapFollow=null;biteMotion=null;
   toast('몸이 너무 길어! 쭈르륵 원위치!',1.7);pulse([28,55,28]);
 }
 function updateRecoil(dt){
@@ -202,6 +216,7 @@ function updateGut(dt){
   gasPuffs=gasPuffs.filter(p=>p.age<p.life);
 }
 function beginSwallow(){
+  tapGrace=null;tapFollow=null;biteMotion=null;
   // The visible gulp (a short, true movement lock) is distinct from the bolus
   // travelling down the entire moving body. No early full-belly sprite at 7/8.
   digest=.64;
@@ -230,7 +245,7 @@ function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.a
 function tickSound(freq=300,dur=.075,vol=.016){try{if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
 function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/GOAL*100).toFixed(1)+'%';$('stageTitle').textContent='STAGE '+String(state.stage).padStart(2,'0')+' · 목표 '+GOAL+'%';$('lv').textContent=state.level;$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'꿀꺽 · 잠깐 정지':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('stretchValue').textContent=bodyTotal.toFixed(1)+' / '+bodyMax();$('stretchFill').style.width=(bodyTotal/bodyMax()*100).toFixed(1)+'%';$('stretchFill').classList.toggle('danger',bodyTotal/bodyMax()>.83||!!recoil);$('stretchLine').firstElementChild.textContent=recoil?'쭈르륵 복귀 중':'몸 길이';$('act').classList.toggle('locked',digest>0||!!recoil);}
-function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn}
+function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn||!!tapGrace}
 function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;const r=Math.hypot(x,y);if(r<.23)return null;return [x/r,y/r]}
 // The original four-direction restriction lived above. The physical thumbstick now
 // retains all 360 degrees, including intermediate slopes and diagonal turns.
@@ -307,7 +322,7 @@ function moveAnalog(dir,dt){
 
 function nudgePlayer(dx,dy){if(modal||!playStarted||digest>0||recoil||fallPieces.length||state.hearts<=0)return false;const xx=player.x+dx,yy=player.y+dy;if(!inside(xx,yy))return false;const before=world[at(player.x,player.y)],dest=world[at(xx,yy)];if(dest===FALL)return false;if(dest===FREE&&!isAction()){if(!autoOn&&toastTimer<=0)toast('미점령 땅은 액션 버튼을 누른 채 갉아먹어야 이동!');return false}
 player.ox=player.x;player.oy=player.y;player.x=xx;player.y=yy;player.phase=0;player.moveDuration=dest===FREE?chewDelay():.26;player.dirX=dx;player.dirY=dy;walkPhase+=.35;lastMoveClock=clock;
-if(dest===FREE){if(before===OWN&&!trail.length)beginBody();world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax())beginSwallow()}
+if(dest===FREE){startBiteVisual(Math.max(.58,chewDelay()));if(before===OWN&&!trail.length)beginBody();world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax())beginSwallow()}
 if(dest===OWN&&trail.length)sealTrail();updateHUD();return true;}
 function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n;i++){particles.push({x:(x+.38+fx*.21)*T+rand(-T*.22,T*.22),y:(y+.38+fy*.21)*T+rand(-T*.22,T*.22),vx:rand(-36,36)+fx*28,vy:rand(-38,22)+fy*28,ttl:rand(.3,.7),rad:rand(.8,2.7),col:i%3?'#c9945b':'#f4d69b'})}}
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast('레벨 '+state.level+'! 몸집·시야 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
@@ -317,7 +332,7 @@ function sealTrail(){bodyJoin=bodyLine.length?{line:bodyLine.map(p=>({...p})),li
 const populated=groups.map(g=>{const set=new Set(g);return {tiles:g,enemies:enemy.filter(e=>set.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))))}});
 let candidates=populated.filter(o=>o.enemies.length===0);if(!candidates.length)candidates=populated;const chosen=candidates.reduce((a,b)=>a.tiles.length<=b.tiles.length?a:b);
 for(const i of chosen.tiles)world[i]=FALL;markSlabDirty();fallPieces=chosen.tiles;fallTimer=0;captureAfterFall=chosen.enemies.length;toast('연결 성공! 판이 통째로 떨어진다!',2.1);tickSound(600,.14,.022);pulse(80);}
-function loseLife(reason){if(modal)return;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
+function loseLife(reason){if(modal)return;tapGrace=null;tapFollow=null;biteMotion=null;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
 function enemyUpdate(dt){for(const e of enemy){if(e.type==='nest')continue;const speed=e.type==='hunter'?.57:e.type==='wander'?.72:.9;e.turn+=dt;let dx=e.dx,dy=e.dy;if(e.type==='hunter'&&trail.length&&e.turn>.6){dx=(player.x-e.x)*.14;dy=(player.y-e.y)*.14;e.turn=0}else if(e.type==='wander'&&e.turn>1.2){dx=rand(-1,1);dy=rand(-1,1);e.turn=0}
 const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;let nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;let i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL){e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;continue}e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;}
 if(trail.length){for(const e of enemy){const ix=clamp(Math.floor(e.x),0,CW-1),iy=clamp(Math.floor(e.y),0,CH-1);if(world[at(ix,iy)]===CUT||Math.hypot(player.x+.5-e.x,player.y+.5-e.y)<.75||(bodyLine.length>1&&bodyLine.some(p=>Math.hypot(p.x-e.x,p.y-e.y)<.56))){loseLife('몬스터가 절단선을 건드렸어');return}}}}
@@ -326,7 +341,20 @@ for(const c of particles){c.x+=c.vx*dt;c.y+=c.vy*dt;c.vy+=190*dt;c.ttl-=dt}parti
 chewEffect=Math.max(0,chewEffect-dt);blink=Math.max(0,blink-dt);levelMoment=Math.max(0,levelMoment-dt);if(digest>0){player.phase=1;player.ox=player.x;player.oy=player.y;}else if(!player.analog){player.phase=Math.min(1,player.phase+dt/(player.moveDuration||.26));}for(const b of biteMarks)b.age+=dt;biteMarks=biteMarks.filter(b=>b.age<b.duration);
 if(fallPieces.length){fallTimer+=dt;if(fallTimer>.75){for(const i of fallPieces)world[i]=OWN;markSlabDirty();const caught=enemy.filter(e=>world[at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))]===OWN);if(caught.length){enemy=enemy.filter(e=>!caught.includes(e));toast('몬스터 '+caught.length+'마리 포획! 코인 보너스',1.8)}scoreArea(fallPieces,caught.length);fallPieces=[];fallTimer=0;state.fullness=0;if(capture()>=GOAL){finishStage();return}save()}return}
 if(digest>0){digest=Math.max(0,digest-dt);if(digest===0){state.fullness=0;tickSound(360,.12,.017);toast('이제 다시 갉아먹자!',.88)}updateHUD();enemyUpdate(dt);return}
-enemyUpdate(dt);if(recoil){updateRecoil(dt);return;}acc+=dt;let dir=direction();if(!autoOn){if(dir)moveAnalog(dir,dt);else{biteCharge=0;biteTarget=-1;if(player.analog)player.phase=1}saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}return;}if(autoOn&&autoPath.length){dir=autoPath[0];player.analog=false;}if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved){autoPath.shift();if(bodyLine.length){traceBody(player.x+.5,player.y+.5);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}}else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
+enemyUpdate(dt);if(recoil){updateRecoil(dt);return;}acc+=dt;let dir=direction();
+if(tapGrace&&(clock>tapGrace.until||state.fullness!==tapGrace.fullness||digest>0))tapGrace=null;
+if(!autoOn){
+  // One tap finishes ONE forward nibble, without forcing users to hold a
+  // button until a tile boundary. The head actually advances while biting.
+  const steering=dir||(tapGrace?tapGrace.dir:(tapFollow?tapFollow.dir:null));
+  if(steering)moveAnalog(steering,dt);
+  else{biteCharge=0;biteTarget=-1;if(player.analog)player.phase=1}
+  if(tapGrace&&state.fullness!==tapGrace.fullness){
+    // The bite must PUSH the whole head into the newly opened cracker tile,
+    // not just clip its tip over the boundary then snap to a halt.
+    tapFollow={dir:tapGrace.dir,until:clock+.48};tapGrace=null;
+  }
+  if(tapFollow&&clock>=tapFollow.until)tapFollow=null;saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}return;}if(autoOn&&autoPath.length){dir=autoPath[0];player.analog=false;}if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved){autoPath.shift();if(bodyLine.length){traceBody(player.x+.5,player.y+.5);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}}else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
 saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}}
 function finishStage(){if(transientFinish)return;transientFinish=true;playStarted=false;state.coins+=120;const ch=characters[(state.stage-1)%2],cardIndex=1;const key=ch.id+'_'+String(cardIndex).padStart(2,'0');if(state.album[key]){state.coins+=25;state.album[key]++;}else{state.album[key]=1}save();updateHUD();showPanel('complete')}
 function mapPosition(){
@@ -581,6 +609,38 @@ function headTexture(){
   g.putImageData(pixels,0,0);
   approvedHeadOnly=c;return c;
 }
+// Preserve the approved face and its signature double-ring round whisker.
+// Close ONLY the dark interior at rest. The existing reference is the exact
+// wide-open bite pose, so the layered transition never changes the eyes/skin.
+let approvedClosedSide=null,approvedClosedHead=null;
+function fullSpriteClosed(){
+  if(approvedClosedSide||!wormAtlas.complete||wormAtlas.naturalWidth!==1024)return approvedClosedSide;
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const g=c.getContext('2d');g.drawImage(wormAtlas,256,0,256,256,0,0,256,256);
+  g.save();g.beginPath();g.ellipse(30,165,19.8,50.2,0,0,Math.PI*2);g.clip();
+  const skin=g.createLinearGradient(20,118,43,214);
+  skin.addColorStop(0,'#ffd7ac');skin.addColorStop(.48,'#f9c59c');skin.addColorStop(1,'#eba878');
+  g.fillStyle=skin;g.fillRect(5,110,55,108);g.restore();
+  // Round whisker / muzzle perimeter: thin, DOUBLE circular line, not a thick lip.
+  g.strokeStyle='#9d593d';g.lineWidth=1.9;g.beginPath();g.ellipse(30,165,19.2,49.0,0,0,Math.PI*2);g.stroke();
+  g.strokeStyle='rgba(255,225,176,.87)';g.lineWidth=1.7;g.beginPath();g.ellipse(30,165,16.5,45.5,0,0,Math.PI*2);g.stroke();
+  g.strokeStyle='#884a36';g.lineWidth=2.2;g.lineCap='round';g.beginPath();g.moveTo(22,169);g.quadraticCurveTo(30,178,39,168);g.stroke();
+  approvedClosedSide=c;return c;
+}
+function headTextureClosed(){
+  if(approvedClosedHead)return approvedClosedHead;
+  const closed=fullSpriteClosed();if(!closed)return null;
+  const openHead=headTexture();if(!openHead)return null;
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const g=c.getContext('2d');g.drawImage(closed,0,0);
+  // Same original head-only alpha boundary for both mouth frames.
+  const alpha=g.getImageData(0,0,256,256),mask=g.createImageData(256,256);
+  g.clearRect(0,0,256,256);g.drawImage(openHead,0,0);
+  const op=g.getImageData(0,0,256,256),cl=alpha.data;
+  for(let i=3;i<cl.length;i+=4)cl[i]=Math.min(cl[i],op.data[i]);
+  g.putImageData(alpha,0,0);
+  approvedClosedHead=c;return c;
+}
 function paintPlayer(){
   if(!player)return;
   const p=mapPosition(),levelScale=1+Math.min(.55,(state.level-1)*.065);
@@ -592,12 +652,9 @@ function paintPlayer(){
   const t=clamp(player.phase,0,1);
   // Avoid abruptly switching between two unrelated whole-body drawings while
   // stretched: the preserved side head is continuous through walk, chew, gulp.
-  let pose=0;
-  if(!extended){
-    if(digest>0){const progress=1-digest/digestionTime();pose=progress<.43?6:progress<.75?9:7;}
-    else if(chewing){pose=Math.sin(t*2*Math.PI)>.18?5:1;}
-    else if(moving||lastMoveClock>=0){pose=1;}
-  }else pose=1;
+  let pose=1; // approved side-view profile, but the default mouth is CLOSED.
+  if(digest>0){const progress=1-digest/.64;pose=progress<.43?6:progress<.75?9:7;}
+  const jaw=biteVisual();
   if(pose!==avatarPose){prevAvatarPose=avatarPose;avatarPose=pose;avatarPoseChanged=clock;}
   const swell=digest>0?1.06:1+Math.min(.10,fullness*.10);
   const sz=(extended?61:65)*levelScale*swell;
@@ -623,17 +680,19 @@ function paintPlayer(){
   const targetScale=pose===6?1.17:pose===9?1.09:pose===5?1.04:1;
   const w=sz*1.15*targetScale,h=sz*1.15*targetScale;
   if(extended&&headTexture()){
-    // Only the head of the SAME approved sprite; no second duplicate tail.
-    // The tiny motion is continuous even when a chewing tile takes .62s.
-    const chewPhase=chewing?Math.sin(clock*13.3)*.028:0;
-    const gulpPhase=digest>0?Math.sin((1-digest/.64)*Math.PI)*.07:0;
-    const bend=chewPhase+gulpPhase;
-    ctx.translate(0,-bend*3.2);
-    ctx.scale(1+bend*.24,1-bend*.17);
-    ctx.drawImage(approvedHeadOnly,-w*.5,-h*.56,w,h);
+    // Same approved eye, antenna and skin in both layers; ONLY the round
+    // mouth-whisker changes when the jaws open. No double faces/ghost eyes.
+    const bend=jaw*.045+(digest>0?Math.sin((1-digest/.64)*Math.PI)*.045:0);
+    ctx.translate(-jaw*2.3,-bend*2.4);
+    ctx.scale(1+bend*.20,1-bend*.08);
+    const cx=-w*.5,cy=-h*.56;
+    ctx.drawImage(headTextureClosed(),cx,cy,w,h);
+    if(jaw>.015){ctx.globalAlpha=jaw;ctx.drawImage(headTexture(),cx,cy,w,h);ctx.globalAlpha=1;}
   }else if(wormAtlas.complete&&wormAtlas.naturalWidth===1024){
-    if(facesSide&&stepping&&(pose===1||pose===5))paintCrawlPose(pose,w,h,t,chewing);
-    else ctx.drawImage(wormAtlas,(pose%4)*256,Math.floor(pose/4)*256,256,256,-w*.5,-h*.56,w,h);
+    if(pose===1&&fullSpriteClosed()){
+      ctx.drawImage(fullSpriteClosed(),-w*.5,-h*.56,w,h);
+      if(jaw>.015){ctx.globalAlpha=jaw;ctx.drawImage(wormAtlas,256,0,256,256,-w*.5,-h*.56,w,h);ctx.globalAlpha=1;}
+    }else ctx.drawImage(wormAtlas,(pose%4)*256,Math.floor(pose/4)*256,256,256,-w*.5,-h*.56,w,h);
   }else if(worm.complete&&worm.naturalWidth){ctx.drawImage(worm,-sz*.55,-sz*.57,sz*1.1,sz*1.05);}
   else {ctx.fillStyle='#f2c18d';ctx.beginPath();ctx.arc(0,0,sz*.42,0,Math.PI*2);ctx.fill();}
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
@@ -645,7 +704,7 @@ function loop(t){if(!lastFrame)lastFrame=t;const dt=Math.min(.055,(t-lastFrame)/
 function resize(){screenW=canvas.clientWidth||innerWidth;screenH=canvas.clientHeight||innerHeight;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(screenW*dpr);canvas.height=Math.round(screenH*dpr)}
 function demo(){newWorld();for(const e of enemy){if(e.type!=='nest'){e.x=Math.max(26,e.x);e.y=Math.min(44,e.y+4)}}autoOn=true;autoPath=[];for(let i=0;i<13;i++)autoPath.push([1,0]);for(let i=0;i<10;i++)autoPath.push([0,-1]);for(let i=0;i<13;i++)autoPath.push([-1,0]);closePanel();toast('자동 시연: 길을 씹어 내 영역과 연결!',2)}
 function closePanel(){if(state.hearts<=0){newWorld()}modal=null;$('overlay').classList.remove('open');playStarted=true;lastFrame=performance.now()}
-function showPanel(type){modal=type;playStarted=false;held=false;$('act').classList.remove('held');$('overlay').classList.add('open');let html='';
+function showPanel(type){modal=type;playStarted=false;held=false;tapGrace=null;tapFollow=null;$('act').classList.remove('held');$('overlay').classList.add('open');let html='';
 if(type==='intro'){const resumable=!!state.tiles||!!state.album&&Object.keys(state.album).length||capture()>15;html=`<div class="eyebrow">FULL SCREEN · V0.2</div><h2>갉아먹고, 연결하면<br><span style="color:#f4d298">한 조각이 내 땅!</span></h2><p>화면 전체가 게임 세계야. <b>왼손 조이스틱</b>으로 이동하고, <b>오른손 버튼</b>을 누른 채 미점령 판을 갉아먹어. 자기 땅에서는 그냥 이동할 수 있어.</p><p>먹다가 볼이 차면 <b>꿀꺽!</b> 움직이지 못해. 몬스터가 절단선을 건드리지 못하게 조심해!</p><div class="buttons"><button class="cta" data-do="play">${resumable?'이어서 플레이':'게임 시작'}</button><button class="quiet" data-do="demo">▶ 자동 시연</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><p class="muted">첫 플레이는 테스트용 작은 판 · 실제 출시용 초대형 맵은 추후 조정 · 자동 저장</p>`}
 else if(type==='menu'){html=`<div class="eyebrow">STAGE ${state.stage} · Lv.${state.level}</div><h2>일시정지</h2><p>점령 <b>${capture().toFixed(1)}%</b> / ${GOAL}% · 코인 ${state.coins} · 경험치 ${state.xp}/${xpLimit(state.level)}</p><div class="buttons"><button class="cta" data-do="play">계속 플레이</button><button class="quiet" data-do="home">⌂ 홈 화면</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><button class="tilebtn" data-do="shop"><span>◈ 코인 상점 · 성장 강화</span><em>→</em></button><button class="tilebtn" data-do="album"><span>▣ 카드 수납장 · 영구 수집</span><em>→</em></button><button class="tilebtn" data-do="map"><span>▦ 미니맵 ${miniOn?'끄기':'켜기'}</span><em>→</em></button><button class="tilebtn" data-do="help"><span>ⓘ 조작과 게임 규칙</span><em>→</em></button><button class="tilebtn" data-do="demo"><span>▶ 자동 시연 (테스트 초기화)</span><em>→</em></button><button class="tilebtn" data-do="restart"><span>↺ 현재 스테이지 새로 시작</span><em>→</em></button><p class="muted">이 기기에만 자동 저장돼. 다른 휴대폰으로는 아직 동기화되지 않아.</p>`}
 else if(type==='shop'){html=`<div class="eyebrow">COIN SHOP · DEMO ECONOMY</div><h2>코인 상점</h2><p>보유 코인 <strong style="color:#f3d28d">${state.coins}</strong> · 구매한 강화는 저장돼.</p>${shopTile('capacity','포만 용량 +3','한 번에 더 많은 땅을 갉아먹어','⚗')}${shopTile('speed','씹는 속도 향상','미점령 지형을 더 빠르게 전진해','↗')}${shopTile('digest','소화 시간 감소','꿀꺽 때문에 멈춰 있는 시간을 줄여','◷')}<p class="notice">광고 시청 보상과 실제 결제는 연동되지 않은 기획 단계야. 테스트 상점에는 실제 돈이나 광고가 없어.</p><div class="buttons"><button class="cta" data-do="menu">← 뒤로</button><button class="quiet" data-do="play">계속 플레이</button></div>`}
@@ -663,13 +722,21 @@ $('menuBtn').addEventListener('click',()=>showPanel('menu'));
 const joy=$('joy'),knob=$('knob'),act=$('act');let joyPointer=null,actionPointer=null;
 function moveJoy(ev){const r=joy.getBoundingClientRect(),centerX=r.left+r.width/2,centerY=r.top+r.height/2;let dx=(ev.clientX-centerX)/(r.width*.32),dy=(ev.clientY-centerY)/(r.height*.32),mag=Math.hypot(dx,dy);if(mag>1){dx/=mag;dy/=mag}controls={x:dx,y:dy};knob.style.transform=`translate(${(dx*r.width*.29).toFixed(1)}px,${(dy*r.height*.29).toFixed(1)}px)`}
 joy.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];joyPointer=e.pointerId;joy.setPointerCapture(e.pointerId);moveJoy(e);e.preventDefault()});joy.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer){moveJoy(e);e.preventDefault()}});function endJoy(e){if(e.pointerId!==joyPointer)return;joyPointer=null;controls={x:0,y:0};knob.style.transform='translate(0,0)'}for(const name of ['pointerup','pointercancel','lostpointercapture'])joy.addEventListener(name,endJoy);
-act.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);held=true;act.classList.add('held');e.preventDefault()});function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held=false;act.classList.remove('held')}for(const name of ['pointerup','pointercancel','lostpointercapture'])act.addEventListener(name,endAct);
+act.addEventListener('pointerdown',e=>{if(modal||digest>0||recoil)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);actionPressedAt=clock;actionStartFull=state.fullness;held=true;startBiteVisual(.68);act.classList.add('held');e.preventDefault()});
+function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held=false;act.classList.remove('held');
+  // A quick tap completes one full bite from the current direction. Holding
+  // still supports continuous chewing while steering with the joystick.
+  if(e.type==='pointerup'&&clock-actionPressedAt<.34&&state.fullness===actionStartFull&&digest<=0&&!recoil&&!modal){
+    const d=direction()||[Math.cos(player.turnAngle||0),Math.sin(player.turnAngle||0)];
+    tapGrace={dir:[...d],until:clock+1.22,fullness:state.fullness};
+  }
+}for(const name of ['pointerup','pointercancel','lostpointercapture'])act.addEventListener(name,endAct);
 window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();pressed[e.code]=true;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{pressed[e.code]=false});window.addEventListener('blur',()=>{controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
-window.__gameTest={snapshot:()=>({x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length,bodyLength:bodyTotal,maxBody:bodyMax(),bodyPoints:bodyLine.length,recoiling:!!recoil,boluses:gutBoluses.map(g=>({time:g.time,duration:g.duration})),gas:gasPuffs.length,farts:fartCount}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();if(ok&&bodyLine.length){traceBody(player.wx,player.wy);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo,advance:(dt=.02)=>advance(dt),getBody:()=>({anchor:bodyAnchor,line:bodyLine,recoil}),triggerRecoil:()=>startRecoil(),getGas:()=>gasPuffs};
+window.__gameTest={snapshot:()=>({x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length,bodyLength:bodyTotal,maxBody:bodyMax(),bodyPoints:bodyLine.length,recoiling:!!recoil,boluses:gutBoluses.map(g=>({time:g.time,duration:g.duration})),gas:gasPuffs.length,farts:fartCount,jaw:Number(biteVisual().toFixed(3)),tapQueued:!!tapGrace,tapFollowing:!!tapFollow}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();if(ok&&bodyLine.length){traceBody(player.wx,player.wy);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo,advance:(dt=.02)=>advance(dt),getBody:()=>({anchor:bodyAnchor,line:bodyLine,recoil}),triggerRecoil:()=>startRecoil(),getGas:()=>gasPuffs};
 init();
 
 </script>
-<script src="./home3d.js?v=028"></script>
-<script src="./home.js?v=028"></script>
+<script src="./home3d.js?v=029"></script>
+<script src="./home.js?v=029"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body></html>

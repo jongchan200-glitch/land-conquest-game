@@ -85,9 +85,22 @@
     sphere(sign*.34,1.186,1.359,.082,.123,.045,palette.pupil);
     sphere(sign*.31,1.253,1.401,.041,.052,.019,palette.white);
   }
-  // Mouth closed at rest: a little curved smile and thin lip line, NOT an open tube.
-  tube([[-.153,.487,1.265],[-.106,.444,1.284],[-.052,.42,1.299],[0,.414,1.309],[.052,.42,1.299],[.106,.444,1.284],[.153,.487,1.265]],.018,palette.mouth);
-  tube([[-.126,.48,1.268],[-.062,.455,1.298],[0,.45,1.308],[.062,.455,1.298],[.126,.48,1.268]],.010,palette.lip);
+  // Signature: TWO subtle, round whisker outlines circling the mouth.
+  // These are 3D raised rings, not a painted smile or a flattened billboard.
+  // Keep the inner mouth SMALL/CLOSED at rest; the ring belongs to the character.
+  sphere(0,.47,1.230,.27,.285,.085,palette.front,20,30);
+  const whiskerRing=(rx,ry,z,r,color)=>{
+    const points=[];
+    for(let k=0;k<=40;k++){
+      const t=k*Math.PI*2/40;
+      points.push([Math.sin(t)*rx,.475+Math.cos(t)*ry,z+.027*Math.cos(t)]);
+    }
+    tube(points,r,color);
+  };
+  whiskerRing(.258,.258,1.316,.019,palette.mouth);
+  whiskerRing(.224,.226,1.332,.012,palette.lip);
+  // Two tiny corners and a relaxed, closed smile within the round whisker.
+  tube([[-.090,.464,1.350],[-.046,.451,1.354],[0,.441,1.356],[.046,.451,1.354],[.090,.464,1.350]],.012,palette.mouth);
   // A curved antenna with a rounded bulb rather than an endlessly flat icon.
   tube([[.02,1.74,.46],[.04,1.86,.49],[.15,2.04,.52],[.26,2.09,.54]],.056,palette.stem);
   sphere(.29,2.09,.54,.147,.143,.145,palette.gold);
@@ -107,7 +120,7 @@
   uProj=gl.getUniformLocation(prog,'uProj');uYaw=gl.getUniformLocation(prog,'uYaw');uPitch=gl.getUniformLocation(prog,'uPitch');uBob=gl.getUniformLocation(prog,'uBob');
   }
   const cpu=software?canvas.getContext('2d',{alpha:true}):null;
-  let yaw=0.12,pitch=0.035,dragged=false,dragID=null,lastX=0,lastY=0,velocity=0,dirty=true,showBadge=false,frameCount=0;
+  let yaw=0.42,pitch=0.035,dragged=false,dragID=null,lastX=0,lastY=0,velocity=0,dirty=true,showBadge=false,frameCount=0;
   let lastT=0;
   const model={active:true,setBadge(b){showBadge=!!b},getYaw:()=>yaw,setYaw(a){yaw=a;velocity=0},getPitch:()=>pitch,getFrameCount:()=>frameCount};
   window.home3D=model;
@@ -126,7 +139,7 @@
   function softwareDraw(t){
     const w=canvas.width,h=canvas.height,c=cpu; if(!c)return;
     c.clearRect(0,0,w,h);
-    const d=Math.min(w/3.3,h/3.0),centerX=w/2+Math.sin(yaw)*d*.48,centerY=h*.51;
+    const d=Math.min(w/4.1,h/3.15),centerX=w/2-Math.sin(yaw)*d*.15,centerY=h*.51;
     const sn=Math.sin(yaw),co=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
     function rotate(x,y,z){let xx=co*x+sn*z,zz=-sn*x+co*z,yy=y-.93;return [xx,cp*yy-sp*zz,sp*yy+cp*zz]}
     function proj(x,y,z){let k=(4.65/(4.65-z)),q=d*k;return [centerX+x*q,centerY-y*q+Math.sin(t*.0016)*d*.018,q]}

@@ -64,7 +64,7 @@
   }else if(which==='settings'){
    html=`<div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
    <button type="button" class="home-action" data-home-action="fullscreen">⛶ 전체 화면 전환</button>
-   <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼을 눌러 크래커 갉아먹기 · PC 방향키/WASD + Space</div>
+   <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
    <div class="info-card"><b>저장</b><br>현재 휴대폰 브라우저에 자동 저장해. 기기 간 동기화와 온라인 계정은 아직 연결되지 않았어.</div>
    <p class="notice">홈 구성과 메뉴 항목은 지옥낙하 V0.7의 구조를 옮긴 것이고, 게임별 데이터·코인은 서로 별개야.</p>`;
   }else if(which==='album'){
