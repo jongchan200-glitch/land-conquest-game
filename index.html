@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
+<!-- v0.2.6: elastic caterpillar body + 8-bite swallow + travelling gut bolus + gas -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -15,7 +16,7 @@
 #top{position:absolute;z-index:3;left:0;right:0;top:0;display:flex;align-items:center;gap:7px;padding:calc(env(safe-area-inset-top) + 9px) max(12px,env(safe-area-inset-right)) 7px max(12px,env(safe-area-inset-left));pointer-events:none}.glass{border:1px solid rgba(209,242,228,.29);box-shadow:0 6px 19px #0005,inset 0 1px #ffffff2e;background:linear-gradient(145deg,rgba(13,46,53,.88),rgba(5,25,32,.85));backdrop-filter:blur(14px)}
 #progress{min-width:0;flex:1;max-width:250px;border-radius:15px;padding:7px 10px;pointer-events:auto}.progressTop{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;letter-spacing:.3px;color:#c8e4dc}.progressTop b{font-size:15px;color:#f7ebc9}.progressRail{margin-top:5px;height:4px;background:#d5f3eb30;border-radius:9px;overflow:hidden}#progressFill{height:100%;background:linear-gradient(90deg,#7cdfbb,#e6db9e);width:0%;transition:width .3s}
 #stats{display:flex;gap:6px;align-items:center;min-width:0;pointer-events:auto}.stat{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1px;padding:5px 9px;border-radius:12px;min-height:41px;font-size:10px;white-space:nowrap}.stat strong{font-size:14px;line-height:1.2;color:#f2e6bf}.stat small{color:#b7d6ce}.iconbtn{display:grid;place-items:center;flex:0 0 auto;width:42px;height:42px;border-radius:13px;font-size:19px;pointer-events:auto}.iconbtn:active{transform:scale(.96)}
-#mouth{position:absolute;z-index:3;top:calc(env(safe-area-inset-top) + 70px);left:max(12px,env(safe-area-inset-left));width:min(165px,45vw);padding:8px 10px;border-radius:13px;pointer-events:none}.mouthhead{display:flex;justify-content:space-between;align-items:center;color:#d9ebdc;font-size:10px}.mouthhead b{color:#ffe5b4;font-size:10px}#mouthRail{margin-top:6px;height:5px;border-radius:10px;background:#ffffff34;overflow:hidden}#mouthFill{height:100%;width:0;background:linear-gradient(90deg,#f1d99a,#e98a59);transition:width .15s}
+#mouth{position:absolute;z-index:3;top:calc(env(safe-area-inset-top) + 70px);left:max(12px,env(safe-area-inset-left));width:min(165px,45vw);padding:8px 10px;border-radius:13px;pointer-events:none}.mouthhead{display:flex;justify-content:space-between;align-items:center;color:#d9ebdc;font-size:10px}.mouthhead b{color:#ffe5b4;font-size:10px}#mouthRail{margin-top:6px;height:5px;border-radius:10px;background:#ffffff34;overflow:hidden}#mouthFill{height:100%;width:0;background:linear-gradient(90deg,#f1d99a,#e98a59);transition:width .15s} #stretchLine{margin-top:9px}#stretchRail{height:4px;margin-top:5px;background:#ffffff25;border-radius:9px;overflow:hidden}#stretchFill{height:100%;width:0;background:linear-gradient(90deg,#92e8c8,#f4ba7f);transition:width .11s}#stretchFill.danger{background:linear-gradient(90deg,#ffad73,#f66b57)}
 #tip{position:absolute;z-index:3;top:calc(env(safe-area-inset-top) + 80px);left:50%;transform:translateX(-50%) translateY(-5px);opacity:0;transition:opacity .2s,transform .2s;max-width:80vw;border:1px solid #f0d9a563;background:#102e39d9;backdrop-filter:blur(8px);border-radius:17px;padding:10px 16px;color:#ffe9b7;font-size:12px;text-align:center;font-weight:750;pointer-events:none;white-space:normal;box-shadow:0 9px 20px #0008}#tip.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #controls{position:absolute;z-index:4;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));height:clamp(105px,25vw,137px);display:flex;justify-content:space-between;align-items:end;padding:0 clamp(17px,5.2vw,45px);pointer-events:none}#joy{position:relative;width:clamp(106px,26vw,136px);height:clamp(106px,26vw,136px);border-radius:50%;pointer-events:auto;touch-action:none;user-select:none;filter:drop-shadow(0 7px 10px #001c23e8)}.joyrim{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 15deg,#b8e0d7,#295568,#eee0a2,#1c4961,#8fbabe,#203e54,#d9c78d,#b8e0d7);border:2px solid #d4f4e1aa;box-shadow:0 0 0 3px #072a36a8,inset 0 0 6px #ffffff66,0 0 20px #67c5c747}.joywell{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 38% 28%,rgba(35,91,104,.86),rgba(4,30,43,.92) 65%,rgba(2,21,31,.9));border:1px solid #a3d6d886;box-shadow:inset 0 5px 15px #0009,inset 0 -1px 10px #9bcfcd77}.joywell:after{content:"";position:absolute;inset:22px;border:1px dashed rgba(177,228,220,.38);border-radius:50%}.joystickKnob{position:absolute;left:50%;top:50%;width:44%;height:44%;margin-left:-22%;margin-top:-22%;border-radius:50%;background:radial-gradient(circle at 33% 23%,#f1e5bd,#6db1c2 31%,#245c73 69%,#0a3546);border:2px solid #f5e2ab;box-shadow:inset 0 2px 3px #fff9,0 7px 11px #000a,0 0 0 5px #001a2b99;will-change:transform}.joystickKnob:after{content:"";position:absolute;inset:30%;background:radial-gradient(#ffe5af,#be8c5c);border-radius:50%}
 #act{position:relative;width:clamp(97px,23.8vw,128px);height:clamp(97px,23.8vw,128px);border-radius:50%;pointer-events:auto;touch-action:none;user-select:none;border:2px solid #ffdfaaa8;background:conic-gradient(from 30deg,#f8dc9a,#88502f,#e5a467,#ffe9a0,#965535,#f7dc9a);box-shadow:0 0 0 4px #0b2e35c4,0 8px 22px #000b,0 0 20px #edc57748;display:grid;place-items:center}#act:before{content:"";position:absolute;inset:8px;border-radius:50%;border:1px solid #ffebbca8;background:radial-gradient(circle at 35% 24%,#f8d9a0,#c87c45 52%,#653a31);box-shadow:inset 0 3px 8px #fff8c877,inset 0 -9px 11px #50231899}#act:after{content:"";position:absolute;inset:20px;border-radius:50%;border:1px solid #f7c78b99}#act svg{position:relative;width:40%;height:40%;filter:drop-shadow(0 2px 4px #36221a);z-index:1}#act.held{transform:scale(.94);filter:brightness(1.17);box-shadow:0 0 0 6px #f3c47e55,0 0 22px #ffdc93}#act.locked{filter:grayscale(.8) brightness(.7)}
@@ -25,11 +26,13 @@
 #mini{position:absolute;right:calc(12px + env(safe-area-inset-right));top:calc(120px + env(safe-area-inset-top));width:min(127px,32vw);height:auto;aspect-ratio:34/48;z-index:3;pointer-events:none;border:2px solid #b7dfd0a0;background:#0c3137df;border-radius:8px;box-shadow:0 8px 25px #0006;display:none}#mini.visible{display:block}
 @media(min-width:750px){#top{padding-inline:22px}#mouth{left:22px}#controls{padding:0 30px 0 30px}#bottomStrip{display:block}}
 @media(max-width:359px){#top{gap:4px;padding-inline:8px}#progress{padding:5px 7px}.stat{padding:4px 5px}.stat strong{font-size:12px}.iconbtn{width:38px;height:38px}#controls{padding:0 9px}#mouth{top:63px}}
+
+#tip{top:calc(env(safe-area-inset-top) + 168px)}
 </style>
 </head>
 <body><main id="app"><canvas id="scene" aria-label="땅따먹기 게임 세계"></canvas><div id="vignette"></div>
 <div id="top"><div id="progress" class="glass"><div class="progressTop"><span id="stageTitle">STAGE 01 · LAND</span><b id="capturePct">0%</b></div><div class="progressRail"><div id="progressFill"></div></div></div><div id="stats"><div class="stat glass"><small>Lv</small><strong id="lv">1</strong></div><div class="stat glass"><small>코인</small><strong id="coins">0</strong></div><div class="stat glass"><small>♥</small><strong id="hearts">3</strong></div></div><button id="menuBtn" class="iconbtn glass" aria-label="메뉴 열기">☰</button></div>
-<div id="mouth" class="glass"><div class="mouthhead"><span id="mouthLabel">입 안의 여유</span><b id="mouthValue">0 / 8</b></div><div id="mouthRail"><div id="mouthFill"></div></div></div>
+<div id="mouth" class="glass"><div class="mouthhead"><span id="mouthLabel">입 안의 여유</span><b id="mouthValue">0 / 8</b></div><div id="mouthRail"><div id="mouthFill"></div></div><div class="mouthhead" id="stretchLine"><span>몸 길이</span><b id="stretchValue">0 / 15</b></div><div id="stretchRail"><div id="stretchFill"></div></div></div>
 <div id="tip" role="status"></div><canvas id="mini" width="136" height="192"></canvas>
 <div id="controls"><div id="joy" aria-label="가상 조이스틱" role="application"><div class="joyrim"></div><div class="joywell"></div><div class="joystickKnob" id="knob"></div></div><button id="act" aria-label="액션 버튼"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><path d="M30 7L36 24 53 30 36 36 30 53 24 36 7 30 24 24Z" fill="#fff2cb" stroke="#fff6da" stroke-width="2"/><circle cx="30" cy="30" r="5" fill="#c27c42"/></svg></button></div><div id="bottomStrip">조이스틱으로 이동 · 버튼을 누른 채 미점령 판 절단 · 점령 면적은 임시 테스트값</div>
 <div id="overlay" class="open"><section class="sheet" id="sheet" aria-live="polite"></section></div></main>
@@ -58,30 +61,144 @@ let lastPlayerSnapshot=null;
 // x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
 const analogCenter=()=>{player.wx=player.x+.5;player.wy=player.y+.5;player.analog=false;player.turnAngle=Math.atan2(player.dirY,player.dirX);player.walkCycle=0};
 let biteCharge=0,biteTarget=-1;
+// v0.2.6 — The body is attached to OWN territory while cutting. All geometry is
+// maintained in continuous grid coordinates, independent of old tile ownership.
+let bodyLine=[],bodyAnchor=null,bodyTotal=0,recoil=null,gutBoluses=[],gasPuffs=[],fartCount=0,bodyJoin=null;
+const bodyMax=()=>15+(state.level-1)*2+(state.upgrades.length||0)*3;
+const resetBody=()=>{bodyLine=[];bodyAnchor=null;bodyTotal=0;recoil=null;bodyJoin=null;};
+const lineLen=a=>{let n=0;for(let i=1;i<a.length;i++)n+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y);return n;};
+const pointOnLine=(arr,len)=>{
+  if(!arr.length)return null;
+  let remaining=Math.max(0,len);
+  for(let i=1;i<arr.length;i++){
+    const a=arr[i-1],b=arr[i],d=Math.hypot(b.x-a.x,b.y-a.y);
+    if(remaining<=d||i===arr.length-1){const t=d?Math.min(1,remaining/d):0;return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};}
+    remaining-=d;
+  }
+  return arr[arr.length-1];
+};
+function traceBody(x,y){
+  if(!bodyLine.length||recoil)return;
+  const q={x,y},n=bodyLine.length,prev=bodyLine[n-1];
+  const d=Math.hypot(q.x-prev.x,q.y-prev.y);if(d<.025)return;
+  if(n>1){
+    // Skip coincident samples left by a previous reversal. The tangent must
+    // describe the last real forward body segment, not a zero-length duplicate.
+    let lastDistinct=n-2;
+    while(lastDistinct>=0&&Math.hypot(prev.x-bodyLine[lastDistinct].x,prev.y-bodyLine[lastDistinct].y)<.025)lastDistinct--;
+    if(lastDistinct>=0){
+      const a=bodyLine[lastDistinct],vx=prev.x-a.x,vy=prev.y-a.y;
+      const back=(vx*(q.x-prev.x)+vy*(q.y-prev.y))<-.012*Math.hypot(vx,vy);
+      if(back){
+        let nearest=-1,dist=.16;
+        for(let i=n-2;i>=Math.max(0,n-28);i--){const z=bodyLine[i];const dd=Math.hypot(q.x-z.x,q.y-z.y);if(dd<dist){nearest=i;dist=dd;}}
+        if(nearest>=0){
+          bodyLine.length=nearest+1;
+          if(Math.hypot(q.x-bodyLine[nearest].x,q.y-bodyLine[nearest].y)>.025)bodyLine.push(q);
+          bodyTotal=lineLen(bodyLine);return;
+        }
+      }
+    }
+  }
+  bodyLine.push(q);
+  // Never retain thousands of near-identical points on long mobile sessions.
+  if(bodyLine.length>650){const reduced=[bodyLine[0]];for(let i=2;i<bodyLine.length-1;i+=2)reduced.push(bodyLine[i]);reduced.push(q);bodyLine=reduced;}
+  bodyTotal=lineLen(bodyLine);
+}
+function beginBody(){
+  if(bodyLine.length||recoil)return;
+  const ax=Number.isFinite(player.wx)?player.wx:player.x+.5;
+  const ay=Number.isFinite(player.wy)?player.wy:player.y+.5;
+  bodyAnchor={x:ax,y:ay};bodyLine=[{...bodyAnchor}];bodyTotal=0;
+}
+function startRecoil(){
+  if(recoil||!bodyLine.length)return;
+  const track=bodyLine.map(p=>({...p})),length=lineLen(track);
+  recoil={track,length,elapsed:0,duration:Math.min(2.4,.58+length*.082)};
+  biteCharge=0;biteTarget=-1;chewEffect=0;
+  toast('몸이 너무 길어! 쭈르륵 원위치!',1.7);pulse([28,55,28]);
+}
+function updateRecoil(dt){
+  if(!recoil)return false;
+  recoil.elapsed+=dt;
+  const u=clamp(recoil.elapsed/recoil.duration,0,1);
+  const q=1-(u*u*(3-2*u)); // easing; the head follows its OWN original trail.
+  const length=recoil.length*q;
+  const pos=pointOnLine(recoil.track,length);
+  if(pos){player.wx=pos.x;player.wy=pos.y;player.x=clamp(Math.floor(pos.x),0,CW-1);player.y=clamp(Math.floor(pos.y),0,CH-1);player.analog=true;player.phase=1;}
+  // Keep only the still-connected portion visible. The cut heals as the body pulls back.
+  const remaining=[];let left=length;
+  for(let i=0;i<recoil.track.length;i++){
+    const z=recoil.track[i];if(i){const p=recoil.track[i-1];left-=Math.hypot(z.x-p.x,z.y-p.y);}
+    if(left>=0)remaining.push(z);else break;
+  }
+  if(pos)remaining.push(pos);bodyLine=remaining;bodyTotal=length;
+  const cells=new Set(bodyLine.map(p=>at(clamp(Math.floor(p.x),0,CW-1),clamp(Math.floor(p.y),0,CH-1))));
+  for(const id of trail){if(world[id]===CUT&&!cells.has(id)){world[id]=FREE;markSlabDirty();}}
+  if(u>=1){
+    for(const id of trail){if(world[id]===CUT)world[id]=FREE;}
+    trail=[];biteMarks=[];markSlabDirty();
+    player.wx=bodyAnchor.x;player.wy=bodyAnchor.y;
+    player.x=clamp(Math.floor(player.wx),0,CW-1);player.y=clamp(Math.floor(player.wy),0,CH-1);
+    player.ox=player.x;player.oy=player.y;player.phase=1;
+    resetBody();updateHUD();save();
+  }
+  return true;
+}
+function emitGas(where){
+  fartCount++;
+  const anchor=where||bodyAnchor||{x:player.wx,y:player.wy};
+  const vx=Number.isFinite(player.dirX)?player.dirX:1,vy=Number.isFinite(player.dirY)?player.dirY:0;
+  for(let i=0;i<13;i++)gasPuffs.push({x:anchor.x*T+Math.random()*7-3.5,y:anchor.y*T+Math.random()*7-3.5,
+    vx:-(vx||1)*16+(Math.random()-.5)*40,vy:-18+(Math.random()-.5)*25,age:0,
+    life:.65+Math.random()*.48,r:2+Math.random()*3});
+  floatTexts.push({text:'뿡!',x:anchor.x*T-9,y:anchor.y*T-12,ttl:.85});
+  tickSound(125,.13,.016);pulse(18);
+}
+function updateGut(dt){
+  for(const g of gutBoluses){
+    g.time+=dt;
+    if(g.time>=g.duration){emitGas(g.tail);g.done=true;}
+  }
+  gutBoluses=gutBoluses.filter(g=>!g.done);
+  for(const p of gasPuffs){p.age+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy-=4*dt;}
+  gasPuffs=gasPuffs.filter(p=>p.age<p.life);
+}
+function beginSwallow(){
+  // The visible gulp (a short, true movement lock) is distinct from the bolus
+  // travelling down the entire moving body. No early full-belly sprite at 7/8.
+  digest=.64;
+  gutBoluses.push({time:-.64,duration:1.75+Math.min(1.7,bodyTotal*.075),
+    tail:bodyAnchor?{...bodyAnchor}:null});
+  acc=0;player.phase=1;player.ox=player.x;player.oy=player.y;
+  lastMoveClock=-99;chewEffect=0;
+  tickSound(210,.18,.027);toast('꿀꺽! 몸속으로 쭈욱~',1.3);pulse(35);
+}
+
 
 const at=(x,y)=>y*CW+x,inside=(x,y)=>x>=0&&x<CW&&y>=0&&y<CH;
 const capture=()=>{let n=0;for(const c of world)if(c===OWN||c===FALL)n++;return n/world.length*100};
 const xpLimit=level=>Math.round(32+level*23);
-const biteMax=()=>8+Math.min(12,(state.level-1)*2)+(state.upgrades.capacity||0)*3;
+const biteMax=()=>8+(state.upgrades.capacity||0)*3;
 const chewDelay=()=>Math.max(.18,.62-(state.level-1)*.023-(state.upgrades.speed||0)*.052); // deliberate slow first-stage gnawing
 const digestionTime=()=>Math.max(.6,1.85-(state.upgrades.digest||0)*.22-(state.level-1)*.015);
 function defaultState(){return {version:2,stage:1,level:1,xp:0,coins:65,hearts:3,captures:0,fullness:0,upgrades:{capacity:0,speed:0,digest:0},album:{},tiles:null,px:3,py:24,monsters:null,adCount:0,timestamp:Date.now()}}
 function save(){try{if(!state||!world)return;const data={...state,tiles:Array.from(world),px:player.x,py:player.y,monsters:enemy.map(e=>({x:e.x,y:e.y,type:e.type,dx:e.dx,dy:e.dy})),timestamp:Date.now()};localStorage.setItem(SAVE_KEY,JSON.stringify(data));return true}catch(e){return false}}
-function load(){let old;try{old=JSON.parse(localStorage.getItem(SAVE_KEY)||'null')}catch(e){}if(!old||old.version!==2||!Array.isArray(old.tiles)||old.tiles.length!==CW*CH)return false;state={...defaultState(),...old,upgrades:{...defaultState().upgrades,...old.upgrades}};world=Uint8Array.from(old.tiles.map(v=>v===CUT||v===FALL?FREE:v));player={x:clamp(old.px||3,0,CW-1),y:clamp(old.py||24,0,CH-1),ox:clamp(old.px||3,0,CW-1),oy:clamp(old.py||24,0,CH-1),dirX:1,dirY:0,phase:1};analogCenter();if(world[at(player.x,player.y)]!==OWN){player.x=3;player.y=24;player.ox=3;player.oy=24;analogCenter()}enemy=(old.monsters||[]).map((e,i)=>({...e,turn:0,seed:i*3.2,immobile:e.type==='nest'}));if(!enemy.length)makeEnemies();state.fullness=0;trail=[];chunks=[];digest=0;fallPieces=[];biteMarks=[];markSlabDirty();return true}
-function newWorld({next=false}={}){if(next)state.stage++;state.level=1;state.xp=0;state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<5;x++)world[at(x,y)]=OWN;player={x:3,y:24,ox:3,oy:24,dirX:1,dirY:0,phase:1};analogCenter();biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:1.15};autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
+function load(){let old;try{old=JSON.parse(localStorage.getItem(SAVE_KEY)||'null')}catch(e){}if(!old||old.version!==2||!Array.isArray(old.tiles)||old.tiles.length!==CW*CH)return false;state={...defaultState(),...old,upgrades:{...defaultState().upgrades,...old.upgrades}};world=Uint8Array.from(old.tiles.map(v=>v===CUT||v===FALL?FREE:v));player={x:clamp(old.px||3,0,CW-1),y:clamp(old.py||24,0,CH-1),ox:clamp(old.px||3,0,CW-1),oy:clamp(old.py||24,0,CH-1),dirX:1,dirY:0,phase:1};analogCenter();resetBody();gutBoluses=[];gasPuffs=[];if(world[at(player.x,player.y)]!==OWN){player.x=3;player.y=24;player.ox=3;player.oy=24;analogCenter()}enemy=(old.monsters||[]).map((e,i)=>({...e,turn:0,seed:i*3.2,immobile:e.type==='nest'}));if(!enemy.length)makeEnemies();state.fullness=0;trail=[];chunks=[];digest=0;fallPieces=[];biteMarks=[];markSlabDirty();return true}
+function newWorld({next=false}={}){if(next)state.stage++;state.level=1;state.xp=0;state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<5;x++)world[at(x,y)]=OWN;player={x:3,y:24,ox:3,oy:24,dirX:1,dirY:0,phase:1};analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:1.15};autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
 function makeEnemies(){const specs=[['bouncer',17,17],['wander',22,36],['hunter',29,23],['nest',31,9]];enemy=specs.map(([type,x,y],i)=>({type,x,y,dx:i%2?.32:-.42,dy:i%2?-.55:.29,turn:0,seed:i*3.4,immobile:type==='nest'}))}
 function getImage(){photo.src=characters[(state.stage-1)%characters.length].image}
 function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
 function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.add('show');toastTimer=seconds}
 function tickSound(freq=300,dur=.075,vol=.016){try{if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
-function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/GOAL*100).toFixed(1)+'%';$('stageTitle').textContent='STAGE '+String(state.stage).padStart(2,'0')+' · 목표 '+GOAL+'%';$('lv').textContent=state.level;$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'소화 중 · 움직일 수 없음':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('act').classList.toggle('locked',digest>0);}
+function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/GOAL*100).toFixed(1)+'%';$('stageTitle').textContent='STAGE '+String(state.stage).padStart(2,'0')+' · 목표 '+GOAL+'%';$('lv').textContent=state.level;$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'꿀꺽 · 잠깐 정지':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('stretchValue').textContent=bodyTotal.toFixed(1)+' / '+bodyMax();$('stretchFill').style.width=(bodyTotal/bodyMax()*100).toFixed(1)+'%';$('stretchFill').classList.toggle('danger',bodyTotal/bodyMax()>.83||!!recoil);$('stretchLine').firstElementChild.textContent=recoil?'쭈르륵 복귀 중':'몸 길이';$('act').classList.toggle('locked',digest>0||!!recoil);}
 function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn}
 function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;const r=Math.hypot(x,y);if(r<.23)return null;return [x/r,y/r]}
 // The original four-direction restriction lived above. The physical thumbstick now
 // retains all 360 degrees, including intermediate slopes and diagonal turns.
 function moveAnalog(dir,dt){
-  if(modal||!playStarted||digest>0||fallPieces.length||state.hearts<=0||autoOn)return false;
+  if(modal||!playStarted||digest>0||recoil||fallPieces.length||state.hearts<=0||autoOn)return false;
   const v=Math.hypot(dir[0],dir[1]);if(v<.01)return false;
   const ux=dir[0]/v,uy=dir[1]/v;
   const targetAngle=Math.atan2(uy,ux);
@@ -137,6 +254,7 @@ function moveAnalog(dir,dt){
     }
   }else {biteCharge=0;biteTarget=-1}
   player.wx=nx;player.wy=ny;player.analog=true;
+  if(bodyLine.length){traceBody(nx,ny);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}
   player.walkCycle=(player.walkCycle||0)+dt*(speed*.86);
   if(digest>0){player.phase=1;player.walkCycle=0}
   else player.phase=(player.walkCycle%1)*.98;
@@ -144,28 +262,28 @@ function moveAnalog(dir,dt){
   return true;
 }
 
-function nudgePlayer(dx,dy){if(modal||!playStarted||digest>0||fallPieces.length||state.hearts<=0)return false;const xx=player.x+dx,yy=player.y+dy;if(!inside(xx,yy))return false;const before=world[at(player.x,player.y)],dest=world[at(xx,yy)];if(dest===FALL)return false;if(dest===FREE&&!isAction()){if(!autoOn&&toastTimer<=0)toast('미점령 땅은 액션 버튼을 누른 채 갉아먹어야 이동!');return false}
+function nudgePlayer(dx,dy){if(modal||!playStarted||digest>0||recoil||fallPieces.length||state.hearts<=0)return false;const xx=player.x+dx,yy=player.y+dy;if(!inside(xx,yy))return false;const before=world[at(player.x,player.y)],dest=world[at(xx,yy)];if(dest===FALL)return false;if(dest===FREE&&!isAction()){if(!autoOn&&toastTimer<=0)toast('미점령 땅은 액션 버튼을 누른 채 갉아먹어야 이동!');return false}
 player.ox=player.x;player.oy=player.y;player.x=xx;player.y=yy;player.phase=0;player.moveDuration=dest===FREE?chewDelay():.26;player.dirX=dx;player.dirY=dy;walkPhase+=.35;lastMoveClock=clock;
-if(dest===FREE){world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax()){digest=digestionTime();acc=0;player.phase=1;player.ox=player.x;player.oy=player.y;lastMoveClock=-99;chewEffect=0;tickSound(210,.18,.03);toast('볼이 빵빵! 꿀꺽 삼키는 중…',1.4);pulse(40)}}
+if(dest===FREE){if(before===OWN&&!trail.length)beginBody();world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax())beginSwallow()}
 if(dest===OWN&&trail.length)sealTrail();updateHUD();return true;}
 function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n;i++){particles.push({x:(x+.38+fx*.21)*T+rand(-T*.22,T*.22),y:(y+.38+fy*.21)*T+rand(-T*.22,T*.22),vx:rand(-36,36)+fx*28,vy:rand(-38,22)+fy*28,ttl:rand(.3,.7),rad:rand(.8,2.7),col:i%3?'#c9945b':'#f4d69b'})}}
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast('레벨 '+state.level+'! 몸집·시야 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
 function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*.7)+monsterCaught*30);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
 function components(){let visited=new Uint8Array(world.length),groups=[];for(let i=0;i<world.length;i++){if(world[i]!==FREE||visited[i])continue;let group=[],stack=[i];visited[i]=1;for(let k=0;k<stack.length;k++){let id=stack[k],x=id%CW,y=Math.floor(id/CW);group.push(id);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;let next=at(nx,ny);if(world[next]===FREE&&!visited[next]){visited[next]=1;stack.push(next)}}}groups.push(group)}return groups}
-function sealTrail(){const count=trail.length,path=trail.slice();for(const i of trail)world[i]=OWN;trail=[];biteMarks=[];markSlabDirty();const groups=components();if(groups.length<2){for(const i of path)world[i]=FREE;markSlabDirty();toast('갉아먹은 길로 돌아왔어. 둘러싸면 땅을 차지해!',1.5);state.fullness=Math.max(0,state.fullness-2);save();return}
+function sealTrail(){bodyJoin=bodyLine.length?{line:bodyLine.map(p=>({...p})),life:.45,total:.45}:null;bodyLine=[];bodyAnchor=null;bodyTotal=0;const count=trail.length,path=trail.slice();for(const i of trail)world[i]=OWN;trail=[];biteMarks=[];markSlabDirty();const groups=components();if(groups.length<2){for(const i of path)world[i]=FREE;markSlabDirty();toast('갉아먹은 길로 돌아왔어. 둘러싸면 땅을 차지해!',1.5);state.fullness=Math.max(0,state.fullness-2);save();return}
 const populated=groups.map(g=>{const set=new Set(g);return {tiles:g,enemies:enemy.filter(e=>set.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))))}});
 let candidates=populated.filter(o=>o.enemies.length===0);if(!candidates.length)candidates=populated;const chosen=candidates.reduce((a,b)=>a.tiles.length<=b.tiles.length?a:b);
 for(const i of chosen.tiles)world[i]=FALL;markSlabDirty();fallPieces=chosen.tiles;fallTimer=0;captureAfterFall=chosen.enemies.length;toast('연결 성공! 판이 통째로 떨어진다!',2.1);tickSound(600,.14,.022);pulse(80);}
-function loseLife(reason){if(modal)return;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;analogCenter();biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
+function loseLife(reason){if(modal)return;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
 function enemyUpdate(dt){for(const e of enemy){if(e.type==='nest')continue;const speed=e.type==='hunter'?.57:e.type==='wander'?.72:.9;e.turn+=dt;let dx=e.dx,dy=e.dy;if(e.type==='hunter'&&trail.length&&e.turn>.6){dx=(player.x-e.x)*.14;dy=(player.y-e.y)*.14;e.turn=0}else if(e.type==='wander'&&e.turn>1.2){dx=rand(-1,1);dy=rand(-1,1);e.turn=0}
 const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;let nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;let i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL){e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;continue}e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;}
-if(trail.length){for(const e of enemy){const ix=clamp(Math.floor(e.x),0,CW-1),iy=clamp(Math.floor(e.y),0,CH-1);if(world[at(ix,iy)]===CUT||Math.hypot(player.x+.5-e.x,player.y+.5-e.y)<.75){loseLife('몬스터가 절단선을 건드렸어');return}}}}
-function advance(dt){clock+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('tip').classList.remove('show')}if(!playStarted||modal)return;
+if(trail.length){for(const e of enemy){const ix=clamp(Math.floor(e.x),0,CW-1),iy=clamp(Math.floor(e.y),0,CH-1);if(world[at(ix,iy)]===CUT||Math.hypot(player.x+.5-e.x,player.y+.5-e.y)<.75||(bodyLine.length>1&&bodyLine.some(p=>Math.hypot(p.x-e.x,p.y-e.y)<.56))){loseLife('몬스터가 절단선을 건드렸어');return}}}}
+function advance(dt){clock+=dt;updateGut(dt);if(bodyJoin){bodyJoin.life-=dt;if(bodyJoin.life<=0)bodyJoin=null;}if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('tip').classList.remove('show')}if(!playStarted||modal)return;
 for(const c of particles){c.x+=c.vx*dt;c.y+=c.vy*dt;c.vy+=190*dt;c.ttl-=dt}particles=particles.filter(p=>p.ttl>0);for(const f of floatTexts){f.y-=27*dt;f.ttl-=dt}floatTexts=floatTexts.filter(f=>f.ttl>0);
 chewEffect=Math.max(0,chewEffect-dt);blink=Math.max(0,blink-dt);levelMoment=Math.max(0,levelMoment-dt);if(digest>0){player.phase=1;player.ox=player.x;player.oy=player.y;}else if(!player.analog){player.phase=Math.min(1,player.phase+dt/(player.moveDuration||.26));}for(const b of biteMarks)b.age+=dt;biteMarks=biteMarks.filter(b=>b.age<b.duration);
 if(fallPieces.length){fallTimer+=dt;if(fallTimer>.75){for(const i of fallPieces)world[i]=OWN;markSlabDirty();const caught=enemy.filter(e=>world[at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))]===OWN);if(caught.length){enemy=enemy.filter(e=>!caught.includes(e));toast('몬스터 '+caught.length+'마리 포획! 코인 보너스',1.8)}scoreArea(fallPieces,caught.length);fallPieces=[];fallTimer=0;state.fullness=0;if(capture()>=GOAL){finishStage();return}save()}return}
-if(digest>0){digest=Math.max(0,digest-dt);if(digest===0){state.fullness=0;tickSound(360,.12,.017);toast('꿀꺽! 다시 움직일 수 있어.',1.05)}updateHUD();enemyUpdate(dt);return}
-enemyUpdate(dt);acc+=dt;let dir=direction();if(!autoOn){if(dir)moveAnalog(dir,dt);else{biteCharge=0;biteTarget=-1;if(player.analog)player.phase=1}saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}return;}if(autoOn&&autoPath.length){dir=autoPath[0];player.analog=false;}if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved)autoPath.shift();else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
+if(digest>0){digest=Math.max(0,digest-dt);if(digest===0){state.fullness=0;tickSound(360,.12,.017);toast('이제 다시 갉아먹자!',.88)}updateHUD();enemyUpdate(dt);return}
+enemyUpdate(dt);if(recoil){updateRecoil(dt);return;}acc+=dt;let dir=direction();if(!autoOn){if(dir)moveAnalog(dir,dt);else{biteCharge=0;biteTarget=-1;if(player.analog)player.phase=1}saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}return;}if(autoOn&&autoPath.length){dir=autoPath[0];player.analog=false;}if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved){autoPath.shift();if(bodyLine.length){traceBody(player.x+.5,player.y+.5);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}}else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
 saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}}
 function finishStage(){if(transientFinish)return;transientFinish=true;playStarted=false;state.coins+=120;const ch=characters[(state.stage-1)%2],cardIndex=1;const key=ch.id+'_'+String(cardIndex).padStart(2,'0');if(state.album[key]){state.coins+=25;state.album[key]++;}else{state.album[key]=1}save();updateHUD();showPanel('complete')}
 function mapPosition(){
@@ -174,7 +292,26 @@ function mapPosition(){
   const t=clamp(player.phase,0,1),ps=t*t*(3-2*t);
   return {x:(player.ox+(player.x-player.ox)*ps+.5)*T,y:(player.oy+(player.y-player.oy)*ps+.5)*T};
 }
-function cameraUpdate(dt){const cur=mapPosition(),progress=capture()/GOAL;const goalZoom=clamp(1.3-Math.min(1,progress)*.55+.028*(state.level-1),.74,1.38);cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*1.4);const towardX=screenW>WIDTH*goalZoom?WIDTH/2:cur.x+T*2.6,towardY=screenH>HEIGHT*goalZoom?HEIGHT/2:cur.y-T*.3;cam.x+=(towardX-cam.x)*Math.min(1,dt*4);cam.y+=(towardY-cam.y)*Math.min(1,dt*4)}
+function cameraUpdate(dt){
+  const cur=mapPosition(),progress=capture()/GOAL;
+  let goalZoom=clamp(1.3-Math.min(1,progress)*.55+.028*(state.level-1),.74,1.38);
+  let targetX=screenW>WIDTH*goalZoom?WIDTH/2:cur.x+T*2.6;
+  let targetY=screenH>HEIGHT*goalZoom?HEIGHT/2:cur.y-T*.3;
+  // Fairness: exposed body parts remain on-screen as the larva stretches.
+  // Smoothly frame the whole path instead of tracking ONLY the head, which
+  // used to put the vulnerable tail (and the final fart) off the left edge.
+  if(bodyLine.length>2&&bodyTotal>1.1){
+    const xs=bodyLine.map(z=>z.x*T),ys=bodyLine.map(z=>z.y*T);
+    const l=Math.min(...xs),r=Math.max(...xs),t=Math.min(...ys),b=Math.max(...ys);
+    const fitX=(screenW-66)/Math.max(190,r-l+T*3.4);
+    const fitY=(screenH-230)/Math.max(230,b-t+T*4.5);
+    goalZoom=Math.min(goalZoom,clamp(Math.min(fitX,fitY),.64,1.38));
+    targetX=(l+r)/2;targetY=(t+b)/2;
+  }
+  cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*2.1);
+  cam.x+=(targetX-cam.x)*Math.min(1,dt*3.1);
+  cam.y+=(targetY-cam.y)*Math.min(1,dt*3.1);
+}
 function visibleRange(){const scale=cam.scale,left=(cam.x-screenW/(2*scale))/T,top=(cam.y-screenH/(2*scale))/T;return {x0:clamp(Math.floor(left)-1,0,CW-1),x1:clamp(Math.ceil(left+screenW/(scale*T))+2,0,CW),y0:clamp(Math.floor(top)-1,0,CH-1),y1:clamp(Math.ceil(top+screenH/(scale*T))+2,0,CH)}}
 function paintFloor(){ctx.fillStyle='#092a34';ctx.fillRect(0,0,screenW,screenH);const g=ctx.createLinearGradient(0,0,screenW,screenH);g.addColorStop(0,'#246163');g.addColorStop(.65,'#123c4a');g.addColorStop(1,'#0b2233');ctx.fillStyle=g;ctx.fillRect(0,0,screenW,screenH);ctx.strokeStyle='#b3f0d70a';ctx.lineWidth=1;for(let i=0;i<15;i++){ctx.beginPath();ctx.arc(screenW*.4,screenH*.48,i*75+clock*3,0,Math.PI*2);ctx.stroke()}}
 // VISUAL ONLY: the tile-grid collision logic stays intact. Render contiguous matte as one continuous surface.
@@ -269,6 +406,88 @@ function paintCrawlPose(index,w,h,t,chewing){
   ctx.drawImage(wormAtlas,cellX,cellY,headEnd,256,-w*.5+headReach,-h*.56+headLift,w*headEnd/256+.8,h);
   ctx.restore();
 }
+function bodyVisualLine(){
+  let raw=bodyLine;
+  if(bodyJoin&&bodyJoin.life>0)raw=bodyJoin.line;
+  if(!raw||raw.length<2)return null;
+  let len=lineLen(raw);
+  if(len<.08)return null;
+  let pts=[];
+  const count=Math.min(260,Math.max(14,Math.ceil(len*T/3.6)));
+  for(let i=0;i<=count;i++){
+    const u=i/count,z=pointOnLine(raw,len*u),p0=pointOnLine(raw,len*Math.max(0,u-.005)),p1=pointOnLine(raw,len*Math.min(1,u+.005));
+    let dx=p1.x-p0.x,dy=p1.y-p0.y,m=Math.hypot(dx,dy)||1,nx=-dy/m,ny=dx/m;
+    const wave=Math.sin(clock*8.4-u*23.5)*1.55*Math.sin(u*Math.PI);
+    pts.push({x:z.x*T+nx*wave,y:z.y*T+ny*wave,nx,ny,u});
+  }
+  // Densely sampled paths are rounded softly at sharp joystick turns.
+  // Endpoints stay exact, keeping the tail planted and the head connected.
+  for(let pass=0;pass<2;pass++){
+    const mid=pts.map(q=>({...q}));
+    for(let i=2;i<pts.length-2;i++){
+      mid[i].x=(pts[i-2].x+2*pts[i-1].x+4*pts[i].x+2*pts[i+1].x+pts[i+2].x)/10;
+      mid[i].y=(pts[i-2].y+2*pts[i-1].y+4*pts[i].y+2*pts[i+1].y+pts[i+2].y)/10;
+    }
+    pts=mid;
+  }
+  for(let i=0;i<pts.length;i++){
+    const a=pts[Math.max(i-1,0)],b=pts[Math.min(i+1,pts.length-1)];
+    const dx=b.x-a.x,dy=b.y-a.y,n=Math.hypot(dx,dy)||1;
+    pts[i].nx=-dy/n;pts[i].ny=dx/n;
+  }
+  return pts;
+}
+function paintStretchedBody(){
+  const pts=bodyVisualLine();if(!pts)return;
+  const fading=bodyJoin?clamp(bodyJoin.life/bodyJoin.total,0,1):1;
+  const front=pts[pts.length-1],back=pts[0];
+  const bulges=gutBoluses.filter(g=>g.time>=0).map(g=>({u:1-clamp(g.time/g.duration,0,1),size:1-clamp(g.time/g.duration,0,1)}));
+  const radius=(u)=>{
+    let r=10.2+7.6*Math.pow(Math.sin(Math.PI*u*.83),.7);
+    for(const b of bulges){let dist=Math.abs(u-b.u);r+=11.6*(.4+.6*b.size)*Math.exp(-dist*dist/(.0012));}
+    return r;
+  };
+  ctx.save();ctx.globalAlpha*=fading;
+  ctx.shadowColor='rgba(57,27,18,.6)';ctx.shadowBlur=11;ctx.shadowOffsetX=1;ctx.shadowOffsetY=5;
+  ctx.beginPath();
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i],r=radius(p.u),x=p.x+p.nx*r,y=p.y+p.ny*r;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i],r=radius(p.u);ctx.lineTo(p.x-p.nx*r,p.y-p.ny*r);}
+  ctx.closePath();
+  const gradient=ctx.createLinearGradient(back.x-12,back.y-7,front.x+14,front.y+14);
+  gradient.addColorStop(0,'#d28d63');gradient.addColorStop(.24,'#eab58a');gradient.addColorStop(.55,'#f4c699');gradient.addColorStop(.78,'#f9d0a6');gradient.addColorStop(1,'#eab48d');
+  ctx.fillStyle=gradient;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.shadowOffsetX=0;
+  ctx.strokeStyle='rgba(139,75,49,.38)';ctx.lineWidth=1.4;ctx.stroke();
+  // Subtle translucent upper light strip adds dimension without looking like rope.
+  ctx.beginPath();for(let i=0;i<pts.length;i++){
+    const p=pts[i],r=radius(p.u),x=p.x+p.nx*r*.67,y=p.y+p.ny*r*.67;
+    if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }ctx.strokeStyle='rgba(255,248,212,.32)';ctx.lineWidth=3.1;ctx.stroke();
+  // Soft compression rings travel slowly across the stretched caterpillar body.
+  for(let u=.045;u<.95;u+=.065){
+    const idx=Math.min(pts.length-2,Math.round(u*(pts.length-1))),p=pts[idx],r=radius(p.u);
+    const squeeze=.4+.35*Math.sin(clock*6.4-u*22);
+    ctx.beginPath();ctx.moveTo(p.x-p.nx*r*.81,p.y-p.ny*r*.81);
+    ctx.quadraticCurveTo(p.x+3,p.y+3,p.x+p.nx*r*.86,p.y+p.ny*r*.86);
+    ctx.strokeStyle='rgba(160,90,58,'+(squeeze*.19).toFixed(3)+')';ctx.lineWidth=1.8;ctx.stroke();
+  }
+  // The visible bolus is embedded *in* the swollen tube, never a floating ball.
+  for(const b of bulges){
+    const p=pts[Math.round(b.u*(pts.length-1))],r=radius(p.u);
+    const g=ctx.createRadialGradient(p.x-4,p.y-5,0,p.x,p.y,r*.85);
+    g.addColorStop(0,'rgba(255,233,182,.44)');g.addColorStop(.78,'rgba(255,209,148,.13)');g.addColorStop(1,'rgba(239,166,116,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,r*.8,0,2*Math.PI);ctx.fill();
+  }
+  ctx.restore();
+}
+function paintGas(){
+  for(const p of gasPuffs){const u=p.age/p.life,a=Math.max(0,(1-u)*.65),r=p.r+u*13;
+    ctx.save();ctx.globalAlpha=a;ctx.fillStyle='#b8edd1';ctx.shadowColor='#80d2b0';ctx.shadowBlur=6;
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.restore();}
+}
+
 function paintPlayer(){
   if(!player)return;
   const p=mapPosition(),levelScale=1+Math.min(.55,(state.level-1)*.065);
@@ -285,14 +504,14 @@ function paintPlayer(){
   // Keep the character in a normal chewing/side pose until the eighth bite
   // actually starts digestion, which also locks movement in nudgePlayer().
   else if(chewing){pose=jawBeat>.18?5:1;}
-  else if(moving||lastMoveClock>=0){pose=1;}
+  else if(bodyLine.length||moving||lastMoveClock>=0){pose=1;}
   if(pose!==avatarPose){prevAvatarPose=avatarPose;avatarPose=pose;avatarPoseChanged=clock;}
   const swell=digest>0?1.06:1+Math.min(.10,fullness*.10);
-  const sz=65*levelScale*swell;
+  const sz=(bodyLine.length?59:65)*levelScale*swell;
   // During digestion the animation is strictly stationary; only the gulp pose changes.
   const bodyBob=digest>0?0:moving?-1.1*Math.sin(t*Math.PI):0;
   ctx.save();ctx.translate(p.x,p.y+bodyBob);
-  const facesSide=pose===1||pose===5;
+  const facesSide=pose===1||pose===5||pose===6||pose===7||pose===9;
   // Approved side-view art faces left; turn the ORIGINAL toward actual direction of travel.
   if(facesSide){
     // The source side-view faces LEFT. Turn that same approved art through any
@@ -319,7 +538,7 @@ function paintPlayer(){
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintMonsters();paintFX();paintPlayer();ctx.restore();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
+function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintMonsters();paintStretchedBody();paintFX();paintGas();paintPlayer();ctx.restore();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
 let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.15)return;lastMini=clock;const w=mini.width,h=mini.height,iw=w/CW,ih=h/CH;minictx.clearRect(0,0,w,h);minictx.fillStyle='#cdb58f';minictx.fillRect(0,0,w,h);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const v=world[at(x,y)];if(v===OWN){minictx.fillStyle='#6bc5a4';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}else if(v===CUT){minictx.fillStyle='#f2cd8f';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}}for(const e of enemy){minictx.fillStyle='#bb6767';minictx.beginPath();minictx.arc(e.x*iw,e.y*ih,3,0,6.3);minictx.fill()}minictx.fillStyle='#fff';minictx.beginPath();minictx.arc((player.x+.5)*iw,(player.y+.5)*ih,4,0,6.3);minictx.fill()}
 function loop(t){if(!lastFrame)lastFrame=t;const dt=Math.min(.055,(t-lastFrame)/1000);lastFrame=t;advance(dt);cameraUpdate(dt);render();drawMini();requestAnimationFrame(loop)}
 function resize(){screenW=canvas.clientWidth||innerWidth;screenH=canvas.clientHeight||innerHeight;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(screenW*dpr);canvas.height=Math.round(screenH*dpr)}
@@ -345,7 +564,7 @@ function moveJoy(ev){const r=joy.getBoundingClientRect(),centerX=r.left+r.width/
 joy.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];joyPointer=e.pointerId;joy.setPointerCapture(e.pointerId);moveJoy(e);e.preventDefault()});joy.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer){moveJoy(e);e.preventDefault()}});function endJoy(e){if(e.pointerId!==joyPointer)return;joyPointer=null;controls={x:0,y:0};knob.style.transform='translate(0,0)'}for(const name of ['pointerup','pointercancel','lostpointercapture'])joy.addEventListener(name,endJoy);
 act.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);held=true;act.classList.add('held');e.preventDefault()});function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held=false;act.classList.remove('held')}for(const name of ['pointerup','pointercancel','lostpointercapture'])act.addEventListener(name,endAct);
 window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();pressed[e.code]=true;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{pressed[e.code]=false});window.addEventListener('blur',()=>{controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
-window.__gameTest={snapshot:()=>({x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo};
+window.__gameTest={snapshot:()=>({x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length,bodyLength:bodyTotal,maxBody:bodyMax(),bodyPoints:bodyLine.length,recoiling:!!recoil,boluses:gutBoluses.map(g=>({time:g.time,duration:g.duration})),gas:gasPuffs.length,farts:fartCount}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();if(ok&&bodyLine.length){traceBody(player.wx,player.wy);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo,advance:(dt=.02)=>advance(dt),getBody:()=>({anchor:bodyAnchor,line:bodyLine,recoil}),triggerRecoil:()=>startRecoil(),getGas:()=>gasPuffs};
 init();
 
 </script>
