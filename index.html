@@ -54,6 +54,11 @@ const markSlabDirty=()=>{slabDirty=true};
 let state,world,player,trail=[],enemy=[],chunks=[],particles=[],floatTexts=[],controls={x:0,y:0},held=false,pressed={},playStarted=false,modal='intro',modalTab='intro',miniOn=false;
 let clock=0,acc=0,lastFrame=0,cam={x:90,y:600,scale:1.15},screenW=390,screenH=844,dpr=1,digest=0,chewEffect=0,fallTimer=0,fallPieces=[],captureAfterFall=0,blink=0,toastTimer=0,saveAcc=0,autoPath=[],autoOn=false,levelMoment=0,walkPhase=0,trailBase=0,transientFinish=false,fxSound=null;
 let lastPlayerSnapshot=null;
+// Continuous analog steering is separate from the unchanged tile/territory simulation.
+// x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
+const analogCenter=()=>{player.wx=player.x+.5;player.wy=player.y+.5;player.analog=false;player.turnAngle=Math.atan2(player.dirY,player.dirX);player.walkCycle=0};
+let biteCharge=0,biteTarget=-1;
+
 const at=(x,y)=>y*CW+x,inside=(x,y)=>x>=0&&x<CW&&y>=0&&y<CH;
 const capture=()=>{let n=0;for(const c of world)if(c===OWN||c===FALL)n++;return n/world.length*100};
 const xpLimit=level=>Math.round(32+level*23);
@@ -62,8 +67,8 @@ const chewDelay=()=>Math.max(.18,.62-(state.level-1)*.023-(state.upgrades.speed|
 const digestionTime=()=>Math.max(.6,1.85-(state.upgrades.digest||0)*.22-(state.level-1)*.015);
 function defaultState(){return {version:2,stage:1,level:1,xp:0,coins:65,hearts:3,captures:0,fullness:0,upgrades:{capacity:0,speed:0,digest:0},album:{},tiles:null,px:3,py:24,monsters:null,adCount:0,timestamp:Date.now()}}
 function save(){try{if(!state||!world)return;const data={...state,tiles:Array.from(world),px:player.x,py:player.y,monsters:enemy.map(e=>({x:e.x,y:e.y,type:e.type,dx:e.dx,dy:e.dy})),timestamp:Date.now()};localStorage.setItem(SAVE_KEY,JSON.stringify(data));return true}catch(e){return false}}
-function load(){let old;try{old=JSON.parse(localStorage.getItem(SAVE_KEY)||'null')}catch(e){}if(!old||old.version!==2||!Array.isArray(old.tiles)||old.tiles.length!==CW*CH)return false;state={...defaultState(),...old,upgrades:{...defaultState().upgrades,...old.upgrades}};world=Uint8Array.from(old.tiles.map(v=>v===CUT||v===FALL?FREE:v));player={x:clamp(old.px||3,0,CW-1),y:clamp(old.py||24,0,CH-1),ox:clamp(old.px||3,0,CW-1),oy:clamp(old.py||24,0,CH-1),dirX:1,dirY:0,phase:1};if(world[at(player.x,player.y)]!==OWN){player.x=3;player.y=24;player.ox=3;player.oy=24}enemy=(old.monsters||[]).map((e,i)=>({...e,turn:0,seed:i*3.2,immobile:e.type==='nest'}));if(!enemy.length)makeEnemies();state.fullness=0;trail=[];chunks=[];digest=0;fallPieces=[];biteMarks=[];markSlabDirty();return true}
-function newWorld({next=false}={}){if(next)state.stage++;state.level=1;state.xp=0;state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<5;x++)world[at(x,y)]=OWN;player={x:3,y:24,ox:3,oy:24,dirX:1,dirY:0,phase:1};trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:1.15};autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
+function load(){let old;try{old=JSON.parse(localStorage.getItem(SAVE_KEY)||'null')}catch(e){}if(!old||old.version!==2||!Array.isArray(old.tiles)||old.tiles.length!==CW*CH)return false;state={...defaultState(),...old,upgrades:{...defaultState().upgrades,...old.upgrades}};world=Uint8Array.from(old.tiles.map(v=>v===CUT||v===FALL?FREE:v));player={x:clamp(old.px||3,0,CW-1),y:clamp(old.py||24,0,CH-1),ox:clamp(old.px||3,0,CW-1),oy:clamp(old.py||24,0,CH-1),dirX:1,dirY:0,phase:1};analogCenter();if(world[at(player.x,player.y)]!==OWN){player.x=3;player.y=24;player.ox=3;player.oy=24;analogCenter()}enemy=(old.monsters||[]).map((e,i)=>({...e,turn:0,seed:i*3.2,immobile:e.type==='nest'}));if(!enemy.length)makeEnemies();state.fullness=0;trail=[];chunks=[];digest=0;fallPieces=[];biteMarks=[];markSlabDirty();return true}
+function newWorld({next=false}={}){if(next)state.stage++;state.level=1;state.xp=0;state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);for(let y=0;y<CH;y++)for(let x=0;x<5;x++)world[at(x,y)]=OWN;player={x:3,y:24,ox:3,oy:24,dirX:1,dirY:0,phase:1};analogCenter();biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:1.15};autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
 function makeEnemies(){const specs=[['bouncer',17,17],['wander',22,36],['hunter',29,23],['nest',31,9]];enemy=specs.map(([type,x,y],i)=>({type,x,y,dx:i%2?.32:-.42,dy:i%2?-.55:.29,turn:0,seed:i*3.4,immobile:type==='nest'}))}
 function getImage(){photo.src=characters[(state.stage-1)%characters.length].image}
 function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
@@ -72,8 +77,74 @@ function tickSound(freq=300,dur=.075,vol=.016){try{if(!fxSound)fxSound=new (wind
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
 function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/GOAL*100).toFixed(1)+'%';$('stageTitle').textContent='STAGE '+String(state.stage).padStart(2,'0')+' · 목표 '+GOAL+'%';$('lv').textContent=state.level;$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'소화 중 · 움직일 수 없음':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('act').classList.toggle('locked',digest>0);}
 function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn}
-function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;if(Math.hypot(x,y)<.23)return null;return Math.abs(x)>=Math.abs(y)?[Math.sign(x),0]:[0,Math.sign(y)]}
-function nudgePlayer(dx,dy){if(modal||!playStarted||digest>0||fallPieces.length||state.hearts<=0)return false;const xx=player.x+dx,yy=player.y+dy;if(!inside(xx,yy))return false;const before=world[at(player.x,player.y)],dest=world[at(xx,yy)];if(dest===CUT||dest===FALL)return false;if((before!==OWN||dest===FREE)&&!isAction()){if(!autoOn&&toastTimer<=0)toast('미점령 땅은 액션 버튼을 누른 채 갉아먹어야 이동!');return false}
+function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;const r=Math.hypot(x,y);if(r<.23)return null;return [x/r,y/r]}
+// The original four-direction restriction lived above. The physical thumbstick now
+// retains all 360 degrees, including intermediate slopes and diagonal turns.
+function moveAnalog(dir,dt){
+  if(modal||!playStarted||digest>0||fallPieces.length||state.hearts<=0||autoOn)return false;
+  const v=Math.hypot(dir[0],dir[1]);if(v<.01)return false;
+  const ux=dir[0]/v,uy=dir[1]/v;
+  const targetAngle=Math.atan2(uy,ux);
+  if(!Number.isFinite(player.turnAngle))player.turnAngle=targetAngle;
+  const turn=Math.atan2(Math.sin(targetAngle-player.turnAngle),Math.cos(targetAngle-player.turnAngle));
+  player.turnAngle+=clamp(turn,-dt*9,dt*9);
+  player.dirX=Math.cos(player.turnAngle);player.dirY=Math.sin(player.turnAngle);
+  if(!Number.isFinite(player.wx)||!Number.isFinite(player.wy))analogCenter();
+  const from=world[at(player.x,player.y)];
+  // First stage: slow, grounded creeping. Returning through an already eaten
+  // passage is free movement, whereas eating NEW material requires the action.
+  const speed=from===OWN?3.25:2.35; // cells/second; balanced separately from chewing cadence
+  const stride=Math.min(.12,dt*speed);
+  let nx=clamp(player.wx+ux*stride,.006,CW-.006),ny=clamp(player.wy+uy*stride,.006,CH-.006);
+  const tx=Math.floor(nx),ty=Math.floor(ny);
+  if(!inside(tx,ty))return false;
+  const dest=world[at(tx,ty)];
+  const crossed=tx!==player.x||ty!==player.y;
+  if(crossed){
+    if(dest===FALL)return false;
+    if(dest===FREE){
+      if(!isAction()){biteCharge=0;biteTarget=-1;return false}
+      // Do not allow one frame of motion through an untouched cell until
+      // enough visible chewing has occurred; this makes the first level slow.
+      const targetId=at(tx,ty);if(biteTarget!==targetId){biteTarget=targetId;biteCharge=0}
+      biteCharge+=dt;
+      chewEffect=Math.max(chewEffect,Math.min(.24,chewDelay()));
+      if(biteCharge<chewDelay())return false;
+    }else {biteCharge=0;biteTarget=-1}
+    const px=player.x,py=player.y,dx=tx-px,dy=ty-py;
+    if(Math.abs(dx)>1||Math.abs(dy)>1)return false;
+    // For a diagonal crossing, ensure the CUT is four-connected. Otherwise a
+    // perfectly curved line looks cut but cannot separate the 4-neighbour map.
+    // A bridge only connects the two touched cells; it never grants movement
+    // into other uncut territory without pressing the action button.
+    let bridge=-1;
+    if(dx&&dy&&(dest===FREE||(dest===OWN&&trail.length))){
+      const a=at(px+dx,py),b=at(px,py+dy);
+      const av=world[a],bv=world[b];
+      if(av===FALL||bv===FALL)return false;
+      if(av===FREE&&bv===FREE)bridge=a;
+      else if(av===FREE&&bv!==OWN&&bv!==CUT)bridge=a;
+      else if(bv===FREE&&av!==OWN&&av!==CUT)bridge=b;
+    }
+    if(bridge>=0&&!isAction())return false;
+    // An end point on OWN seals the trail immediately in nudgePlayer; add
+    // the corner bridge BEFORE closure so diagonal loops form a real boundary.
+    if(bridge>=0&&dest===OWN&&world[bridge]===FREE){world[bridge]=CUT;trail.push(bridge);markSlabDirty()}
+    if(!nudgePlayer(dx,dy))return false;
+    biteCharge=0;biteTarget=-1;
+    if(bridge>=0&&dest!==OWN&&world[bridge]===FREE){
+      world[bridge]=CUT;trail.push(bridge);markSlabDirty();
+    }
+  }else {biteCharge=0;biteTarget=-1}
+  player.wx=nx;player.wy=ny;player.analog=true;
+  player.walkCycle=(player.walkCycle||0)+dt*(speed*.86);
+  if(digest>0){player.phase=1;player.walkCycle=0}
+  else player.phase=(player.walkCycle%1)*.98;
+  lastMoveClock=clock;
+  return true;
+}
+
+function nudgePlayer(dx,dy){if(modal||!playStarted||digest>0||fallPieces.length||state.hearts<=0)return false;const xx=player.x+dx,yy=player.y+dy;if(!inside(xx,yy))return false;const before=world[at(player.x,player.y)],dest=world[at(xx,yy)];if(dest===FALL)return false;if(dest===FREE&&!isAction()){if(!autoOn&&toastTimer<=0)toast('미점령 땅은 액션 버튼을 누른 채 갉아먹어야 이동!');return false}
 player.ox=player.x;player.oy=player.y;player.x=xx;player.y=yy;player.phase=0;player.moveDuration=dest===FREE?chewDelay():.26;player.dirX=dx;player.dirY=dy;walkPhase+=.35;lastMoveClock=clock;
 if(dest===FREE){world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax()){digest=digestionTime();acc=0;player.phase=1;player.ox=player.x;player.oy=player.y;lastMoveClock=-99;chewEffect=0;tickSound(210,.18,.03);toast('볼이 빵빵! 꿀꺽 삼키는 중…',1.4);pulse(40)}}
 if(dest===OWN&&trail.length)sealTrail();updateHUD();return true;}
@@ -81,23 +152,24 @@ function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast('레벨 '+state.level+'! 몸집·시야 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
 function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*.7)+monsterCaught*30);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
 function components(){let visited=new Uint8Array(world.length),groups=[];for(let i=0;i<world.length;i++){if(world[i]!==FREE||visited[i])continue;let group=[],stack=[i];visited[i]=1;for(let k=0;k<stack.length;k++){let id=stack[k],x=id%CW,y=Math.floor(id/CW);group.push(id);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let nx=x+dx,ny=y+dy;if(!inside(nx,ny))continue;let next=at(nx,ny);if(world[next]===FREE&&!visited[next]){visited[next]=1;stack.push(next)}}}groups.push(group)}return groups}
-function sealTrail(){const count=trail.length;for(const i of trail)world[i]=OWN;trail=[];biteMarks=[];markSlabDirty();const groups=components();if(groups.length<2){toast('절단선 연결! 더 큰 구역을 둘러싸 보자.',1.5);state.fullness=Math.max(0,state.fullness-2);save();return}
+function sealTrail(){const count=trail.length,path=trail.slice();for(const i of trail)world[i]=OWN;trail=[];biteMarks=[];markSlabDirty();const groups=components();if(groups.length<2){for(const i of path)world[i]=FREE;markSlabDirty();toast('갉아먹은 길로 돌아왔어. 둘러싸면 땅을 차지해!',1.5);state.fullness=Math.max(0,state.fullness-2);save();return}
 const populated=groups.map(g=>{const set=new Set(g);return {tiles:g,enemies:enemy.filter(e=>set.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))))}});
 let candidates=populated.filter(o=>o.enemies.length===0);if(!candidates.length)candidates=populated;const chosen=candidates.reduce((a,b)=>a.tiles.length<=b.tiles.length?a:b);
 for(const i of chosen.tiles)world[i]=FALL;markSlabDirty();fallPieces=chosen.tiles;fallTimer=0;captureAfterFall=chosen.enemies.length;toast('연결 성공! 판이 통째로 떨어진다!',2.1);tickSound(600,.14,.022);pulse(80);}
-function loseLife(reason){if(modal)return;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
+function loseLife(reason){if(modal)return;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=3;player.y=24;player.ox=3;player.oy=24;player.phase=1;analogCenter();biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
 function enemyUpdate(dt){for(const e of enemy){if(e.type==='nest')continue;const speed=e.type==='hunter'?.57:e.type==='wander'?.72:.9;e.turn+=dt;let dx=e.dx,dy=e.dy;if(e.type==='hunter'&&trail.length&&e.turn>.6){dx=(player.x-e.x)*.14;dy=(player.y-e.y)*.14;e.turn=0}else if(e.type==='wander'&&e.turn>1.2){dx=rand(-1,1);dy=rand(-1,1);e.turn=0}
 const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;let nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;let i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL){e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;continue}e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;}
 if(trail.length){for(const e of enemy){const ix=clamp(Math.floor(e.x),0,CW-1),iy=clamp(Math.floor(e.y),0,CH-1);if(world[at(ix,iy)]===CUT||Math.hypot(player.x+.5-e.x,player.y+.5-e.y)<.75){loseLife('몬스터가 절단선을 건드렸어');return}}}}
 function advance(dt){clock+=dt;if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('tip').classList.remove('show')}if(!playStarted||modal)return;
 for(const c of particles){c.x+=c.vx*dt;c.y+=c.vy*dt;c.vy+=190*dt;c.ttl-=dt}particles=particles.filter(p=>p.ttl>0);for(const f of floatTexts){f.y-=27*dt;f.ttl-=dt}floatTexts=floatTexts.filter(f=>f.ttl>0);
-chewEffect=Math.max(0,chewEffect-dt);blink=Math.max(0,blink-dt);levelMoment=Math.max(0,levelMoment-dt);if(digest>0){player.phase=1;player.ox=player.x;player.oy=player.y;}else{player.phase=Math.min(1,player.phase+dt/(player.moveDuration||.26));}for(const b of biteMarks)b.age+=dt;biteMarks=biteMarks.filter(b=>b.age<b.duration);
+chewEffect=Math.max(0,chewEffect-dt);blink=Math.max(0,blink-dt);levelMoment=Math.max(0,levelMoment-dt);if(digest>0){player.phase=1;player.ox=player.x;player.oy=player.y;}else if(!player.analog){player.phase=Math.min(1,player.phase+dt/(player.moveDuration||.26));}for(const b of biteMarks)b.age+=dt;biteMarks=biteMarks.filter(b=>b.age<b.duration);
 if(fallPieces.length){fallTimer+=dt;if(fallTimer>.75){for(const i of fallPieces)world[i]=OWN;markSlabDirty();const caught=enemy.filter(e=>world[at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))]===OWN);if(caught.length){enemy=enemy.filter(e=>!caught.includes(e));toast('몬스터 '+caught.length+'마리 포획! 코인 보너스',1.8)}scoreArea(fallPieces,caught.length);fallPieces=[];fallTimer=0;state.fullness=0;if(capture()>=GOAL){finishStage();return}save()}return}
 if(digest>0){digest=Math.max(0,digest-dt);if(digest===0){state.fullness=0;tickSound(360,.12,.017);toast('꿀꺽! 다시 움직일 수 있어.',1.05)}updateHUD();enemyUpdate(dt);return}
-enemyUpdate(dt);acc+=dt;let dir=direction();if(autoOn&&autoPath.length)dir=autoPath[0];if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved)autoPath.shift();else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
+enemyUpdate(dt);acc+=dt;let dir=direction();if(!autoOn){if(dir)moveAnalog(dir,dt);else{biteCharge=0;biteTarget=-1;if(player.analog)player.phase=1}saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}return;}if(autoOn&&autoPath.length){dir=autoPath[0];player.analog=false;}if(autoOn&&!autoPath.length){autoOn=false;toast('자동 시연 종료! 직접 조작해 보자.',2)}let nextFree=dir&&inside(player.x+dir[0],player.y+dir[1])&&world[at(player.x+dir[0],player.y+dir[1])]===FREE;let wait=nextFree?chewDelay():(world[at(player.x,player.y)]===OWN&&!trail.length?.26:chewDelay());if(dir&&acc>=wait){acc=0;const moved=nudgePlayer(dir[0],dir[1]);if(autoOn&&moved)autoPath.shift();else if(autoOn&&!moved&&!digest){autoOn=false;autoPath=[];toast('자동 경로가 막혀 시연을 중단했어.',1.5)}}if(!dir)acc=Math.min(acc,.18);
 saveAcc+=dt;if(saveAcc>5){saveAcc=0;save()}}
 function finishStage(){if(transientFinish)return;transientFinish=true;playStarted=false;state.coins+=120;const ch=characters[(state.stage-1)%2],cardIndex=1;const key=ch.id+'_'+String(cardIndex).padStart(2,'0');if(state.album[key]){state.coins+=25;state.album[key]++;}else{state.album[key]=1}save();updateHUD();showPanel('complete')}
 function mapPosition(){
+  if(player.analog&&Number.isFinite(player.wx)&&Number.isFinite(player.wy))return {x:player.wx*T,y:player.wy*T};
   // A caterpillar does not glide at constant speed: it braces, stretches and pulls its rear up.
   const t=clamp(player.phase,0,1),ps=t*t*(3-2*t);
   return {x:(player.ox+(player.x-player.ox)*ps+.5)*T,y:(player.oy+(player.y-player.oy)*ps+.5)*T};
@@ -220,7 +292,13 @@ function paintPlayer(){
   ctx.save();ctx.translate(p.x,p.y+bodyBob);
   const facesSide=pose===1||pose===5;
   // Approved side-view art faces left; turn the ORIGINAL toward actual direction of travel.
-  if(facesSide){if(player.dirY<0)ctx.rotate(Math.PI/2);else if(player.dirY>0)ctx.rotate(-Math.PI/2);else if(player.dirX>0)ctx.scale(-1,1);}
+  if(facesSide){
+    // The source side-view faces LEFT. Turn that same approved art through any
+    // joystick heading, without snapping to 4 cardinal angles.
+    const a=Number.isFinite(player.turnAngle)?player.turnAngle:Math.atan2(player.dirY,player.dirX);
+    if(Math.cos(a)>=0){ctx.rotate(a);ctx.scale(-1,1)}
+    else {ctx.rotate(Math.atan2(Math.sin(a-Math.PI),Math.cos(a-Math.PI)))}
+  }
   if(blink>0){ctx.shadowColor='#ff5e5e';ctx.shadowBlur=18;}else{ctx.shadowColor='#09171b';ctx.shadowBlur=9;}
   ctx.shadowOffsetY=4;
   const targetScale=pose===6?1.17:pose===9?1.09:pose===5?1.04:1;
@@ -265,7 +343,7 @@ function moveJoy(ev){const r=joy.getBoundingClientRect(),centerX=r.left+r.width/
 joy.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];joyPointer=e.pointerId;joy.setPointerCapture(e.pointerId);moveJoy(e);e.preventDefault()});joy.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer){moveJoy(e);e.preventDefault()}});function endJoy(e){if(e.pointerId!==joyPointer)return;joyPointer=null;controls={x:0,y:0};knob.style.transform='translate(0,0)'}for(const name of ['pointerup','pointercancel','lostpointercapture'])joy.addEventListener(name,endJoy);
 act.addEventListener('pointerdown',e=>{if(modal)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);held=true;act.classList.add('held');e.preventDefault()});function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held=false;act.classList.remove('held')}for(const name of ['pointerup','pointercancel','lostpointercapture'])act.addEventListener(name,endAct);
 window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();pressed[e.code]=true;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{pressed[e.code]=false});window.addEventListener('blur',()=>{controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
-window.__gameTest={snapshot:()=>({x:player.x,y:player.y,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo};
+window.__gameTest={snapshot:()=>({x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo};
 init();
 
 </script>
