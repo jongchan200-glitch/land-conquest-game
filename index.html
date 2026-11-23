@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
-<!-- v0.2.6: elastic caterpillar body + 8-bite swallow + travelling gut bolus + gas -->
+<!-- v0.2.13: top-down animated larva / head lift on swallow; rules/cards preserved -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -996,7 +996,7 @@ function paintPlayer(){
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintHabitatWalls();paintMonsters();paintStretchedBody();paintFX();paintGas();paintPlayer();ctx.restore();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
+function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintHabitatWalls();paintMonsters();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
 let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.15)return;lastMini=clock;const w=mini.width,h=mini.height,iw=w/CW,ih=h/CH;minictx.clearRect(0,0,w,h);minictx.fillStyle='#cdb58f';minictx.fillRect(0,0,w,h);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const v=world[at(x,y)];if(v===OWN){minictx.fillStyle='#6bc5a4';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}else if(v===CUT){minictx.fillStyle='#f2cd8f';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}}for(const e of enemy){if(e.zone>state.unlockedZone)continue;minictx.fillStyle='#bb6767';minictx.beginPath();minictx.arc(e.x*iw,e.y*ih,3,0,6.3);minictx.fill()}minictx.fillStyle='#fff';minictx.beginPath();minictx.arc((player.x+.5)*iw,(player.y+.5)*ih,4,0,6.3);minictx.fill();
  const r=HABITATS[state.unlockedZone-1];minictx.fillStyle='rgba(6,19,29,.62)';
  minictx.fillRect(0,0,w,r.y0*ih);minictx.fillRect(0,r.y1*ih,w,h-r.y1*ih);
@@ -1039,6 +1039,178 @@ function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held
 window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();pressed[e.code]=true;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{pressed[e.code]=false});window.addEventListener('blur',()=>{controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
 window.__gameTest={snapshot:()=>({monsterSizes:enemy.map(e=>({type:e.type,zone:e.zone,renderRadius:monsterRadius(e),hitRadius:monsterHitRadius(e)})),playerGrowth:larvaLevelSize(),zone:state.unlockedZone,zonePct:zoneProgress(),zoneGoal:zoneTarget(),zones:HABITATS.map((z,i)=>({zone:i+1,area:(z.x1-z.x0)*(z.y1-z.y0),progress:zoneProgress(i+1)})),worldCells:CW*CH,transition:zoneTransition?zoneTransition.elapsed:null,x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length,bodyLength:bodyTotal,maxBody:bodyMax(),bodyPoints:bodyLine.length,recoiling:!!recoil,boluses:gutBoluses.map(g=>({time:g.time,duration:g.duration})),gas:gasPuffs.length,farts:fartCount,jaw:Number(biteVisual().toFixed(3)),tapQueued:!!tapGrace,tapFollowing:!!tapFollow}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();if(ok&&bodyLine.length){traceBody(player.wx,player.wy);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo,advance:(dt=.02)=>advance(dt),getBody:()=>({anchor:bodyAnchor,line:bodyLine,recoil}),triggerRecoil:()=>startRecoil(),getGas:()=>gasPuffs,unlock:()=>unlockHabitat(),setZone:(n)=>{state.unlockedZone=clamp(n,1,3);zoneTransition=null;updateHUD()},setAreaComplete:(n=state.unlockedZone)=>{const z=HABITATS[n-1];for(let y=z.y0;y<z.y1;y++)for(let x=z.x0;x<z.x1;x++)world[at(x,y)]=OWN;markSlabDirty();updateHUD()},getWorld:()=>world,zoneOf};
 init();
+
+</script>
+<script>
+/* CHEW & CLAIM v0.2.13 — animated top-down larva renderer.
+ * Visual-only module: uses the game's authoritative position, bite, fullness,
+ * body route and swallow clocks. Never modifies physics, save, or card art.
+ * Previous side-view functions remain in index.html for instant rollback.
+ */
+(function () {
+  'use strict';
+  const W = window;
+  const TAU = Math.PI * 2;
+  const skin = '#f6c59e';
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  const ellipse = (c,x,y,rx,ry) => {c.beginPath();c.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),0,0,TAU);};
+  function heading() {
+    let a = Number.isFinite(player.turnAngle) ? player.turnAngle : Math.atan2(player.dirY || 0, player.dirX || 1);
+    if (bodyLine.length > 3 && bodyTotal > .12) {
+      const tip = bodyLine[bodyLine.length-1], rear = bodyLine[Math.max(0,bodyLine.length-8)];
+      if(Math.hypot(tip.x-rear.x,tip.y-rear.y)>.08) a=Math.atan2(tip.y-rear.y,tip.x-rear.x);
+    }
+    return a;
+  }
+  function isCrawling() {
+    return digest <= 0 && !recoil && (clock-lastMoveClock < .26 || (player.phase < .99 && clock-lastMoveClock < .8));
+  }
+  function createBodyPoints() {
+    const extended = bodyLine.length > 1 && bodyTotal > .08;
+    const p = mapPosition(), a = heading(), dx=Math.cos(a),dy=Math.sin(a),nx=-dy,ny=dx;
+    let samples;
+    if (extended) {
+      const base=bodyVisualLine();
+      samples=base ? base.map(q=>({x:q.x,y:q.y,u:q.u})) : null;
+      if (!samples || samples.length<2) return null;
+      // Reattach the last tip to the exact continuously interpolated head.
+      const last=samples[samples.length-1], ox=p.x-last.x, oy=p.y-last.y;
+      for(const q of samples){const blend=Math.pow(q.u,4);q.x+=ox*blend;q.y+=oy*blend;}
+    } else {
+      const count=32, length=(84+Math.min(16,(state.level-1)*2))*larvaLevelSize();
+      samples=[];
+      for(let i=0;i<=count;i++){
+        const u=i/count,dist=(1-u)*length;
+        samples.push({x:p.x-dx*dist,y:p.y-dy*dist,u});
+      }
+    }
+    const moving=isCrawling(),phase=clock*(moving?11.5:1.7);
+    const amp=moving?Math.min(3.4,extended?2.3:3.4):.35;
+    for(let i=0;i<samples.length;i++){
+      const q=samples[i],prev=samples[Math.max(0,i-1)],next=samples[Math.min(samples.length-1,i+1)];
+      const vx=next.x-prev.x,vy=next.y-prev.y,m=Math.hypot(vx,vy)||1;
+      q.nx=-vy/m;q.ny=vx/m;
+      const envelope=Math.sin(Math.PI*q.u)**.7;
+      const shift=amp*envelope*Math.sin(phase-q.u*19.5);
+      q.x+=q.nx*shift;q.y+=q.ny*shift;
+      q.radius=(extended?5.2+19.0*Math.pow(q.u,.68):5.2+21.1*Math.sin(Math.PI*(.07+.83*q.u))**.66);
+      // A visible peristaltic contraction travels down the entire soft body.
+      q.radius*=1+(moving?.105:.017)*Math.sin(phase-q.u*19.5);
+      for(const b of gutBoluses){
+        if(b.time<0)continue;
+        const pos=1-clamp01(b.time/b.duration),d=q.u-pos;
+        q.radius+=7.8*(1-clamp01(b.time/b.duration)*.65)*Math.exp(-d*d/.0018);
+      }
+      q.radius*=larvaLevelSize();
+    }
+    return {samples,extended,moving};
+  }
+  function body() {
+    if(!player)return;
+    const item=createBodyPoints();if(!item)return;
+    const {samples,extended}=item, c=ctx;
+    const fading=extended&&bodyJoin?clamp01(bodyJoin.life/bodyJoin.total):1;
+    c.save();c.globalAlpha*=fading;
+    c.lineCap='round';c.lineJoin='round';
+    c.shadowColor='rgba(74,37,23,.31)';c.shadowBlur=9;c.shadowOffsetY=4;
+    c.beginPath();
+    for(let i=0;i<samples.length;i++){
+      const q=samples[i],x=q.x+q.nx*q.radius,y=q.y+q.ny*q.radius;
+      if(i===0)c.moveTo(x,y);else c.lineTo(x,y);
+    }
+    const head=samples[samples.length-1];
+    c.quadraticCurveTo(head.x+Math.cos(heading())*head.radius*.7,head.y+Math.sin(heading())*head.radius*.7,
+      head.x-head.nx*head.radius,head.y-head.ny*head.radius);
+    for(let i=samples.length-2;i>=0;i--){const q=samples[i];c.lineTo(q.x-q.nx*q.radius,q.y-q.ny*q.radius);}
+    const tail=samples[0];c.quadraticCurveTo(tail.x-Math.cos(heading())*tail.radius,tail.y-Math.sin(heading())*tail.radius,tail.x+tail.nx*tail.radius,tail.y+tail.ny*tail.radius);
+    c.closePath();
+    const middle=samples[Math.floor(samples.length/2)],r=middle.radius;
+    const g=c.createLinearGradient(middle.x+middle.nx*r,middle.y+middle.ny*r,middle.x-middle.nx*r,middle.y-middle.ny*r);
+    g.addColorStop(0,'#ffe4c3');g.addColorStop(.25,'#fbd2ac');g.addColorStop(.58,skin);g.addColorStop(1,'#d99477');
+    c.fillStyle=g;c.fill();c.shadowBlur=0;c.shadowOffsetY=0;
+    c.save();c.clip();
+    // Soft body rolls with shadows, avoiding obvious separate circular segments.
+    const folds=extended?Math.max(5,Math.min(14,Math.floor(bodyTotal*1.6))):5;
+    for(let j=1;j<=folds;j++){
+      const u=j/(folds+1),q=samples[Math.round(u*(samples.length-1))];
+      c.beginPath();c.moveTo(q.x-q.nx*q.radius*.55,q.y-q.ny*q.radius*.55);
+      c.quadraticCurveTo(q.x+Math.cos(heading())*3,q.y+Math.sin(heading())*3,q.x+q.nx*q.radius*.59,q.y+q.ny*q.radius*.59);
+      c.strokeStyle='rgba(156,84,62,.105)';c.lineWidth=2;c.stroke();
+      c.beginPath();c.moveTo(q.x-q.nx*q.radius*.58,q.y-q.ny*q.radius*.58);
+      c.quadraticCurveTo(q.x+Math.cos(heading())*6,q.y+Math.sin(heading())*6,q.x+q.nx*q.radius*.25,q.y+q.ny*q.radius*.25);
+      c.strokeStyle='rgba(255,250,222,.14)';c.lineWidth=1.8;c.stroke();
+    }
+    c.beginPath();for(let i=0;i<samples.length;i++){const q=samples[i];if(!i)c.moveTo(q.x+q.nx*q.radius*.61,q.y+q.ny*q.radius*.61);else c.lineTo(q.x+q.nx*q.radius*.61,q.y+q.ny*q.radius*.61);}
+    c.strokeStyle='rgba(255,251,234,.32)';c.lineWidth=3.4;c.stroke();
+    c.restore();c.restore();
+  }
+  function topHead(x,y,scale,angle,jaw,full,fade=1){
+    const c=ctx;
+    c.save();c.globalAlpha*=fade;c.translate(x,y);c.rotate(angle+Math.PI/2);c.scale(scale,scale);
+    const bob=isCrawling()?Math.sin(clock*23)*1.25:Math.sin(clock*2.4)*.3;
+    c.translate(0,-1.2-jaw*3.6+bob);
+    // Rounded head is part of the continuous body, colored by the same palette.
+    c.shadowColor='rgba(82,43,29,.28)';c.shadowBlur=8;c.shadowOffsetY=3;
+    ellipse(c,0,0,29+full*2,31+jaw*2);const g=c.createRadialGradient(-12,-15,1,1,4,43);
+    g.addColorStop(0,'#fff0d5');g.addColorStop(.42,'#ffdbb6');g.addColorStop(.83,'#f5be9a');g.addColorStop(1,'#dd9278');
+    c.fillStyle=g;c.fill();c.shadowBlur=0;c.shadowOffsetY=0;
+    // Cheeks grow with collected bites, physically visible from top view.
+    for(const sign of [-1,1]){
+      ellipse(c,sign*(21+full*3),-2,7.8+full*6.2,12.5+full*5);
+      const cheek=c.createRadialGradient(sign*25,-7,1,sign*22,0,22);
+      cheek.addColorStop(0,'rgba(255,184,160,.92)');cheek.addColorStop(1,'rgba(228,105,105,0)');
+      c.fillStyle=cheek;c.fill();
+    }
+    // Two short flexible antennae, deliberately visible in top-down view.
+    c.strokeStyle='#a96653';c.lineWidth=2.7;c.lineCap='round';
+    for(const sign of [-1,1]){
+      c.beginPath();c.moveTo(sign*11,-22);c.quadraticCurveTo(sign*(13+Math.sin(clock*6+sign)*2),-39,sign*18,-44-jaw*2);c.stroke();
+      ellipse(c,sign*18,-44-jaw*2,4.1,4.6);c.fillStyle='#edac80';c.fill();
+    }
+    // Eyes near the front: small from above, not a pasted frontal face.
+    for(const sign of [-1,1]){
+      ellipse(c,sign*12,-18,5.8,7.0);c.fillStyle='#fff9ec';c.fill();
+      ellipse(c,sign*12,-20,3.2,3.9);c.fillStyle='#513b39';c.fill();
+      ellipse(c,sign*13,-21.5,1.25,1.6);c.fillStyle='#fff';c.fill();
+    }
+    // Thin, single circular whisker around a mouth at the foremost rim.
+    c.strokeStyle='#945c4c';c.lineWidth=1.5;
+    ellipse(c,0,-29-jaw*2,5.8+jaw*4.0,3.6+jaw*4.4);c.stroke();
+    ellipse(c,0,-30-jaw*2,1.5+jaw*5,0.7+jaw*4.5);c.fillStyle='#663f3d';c.fill();
+    if(jaw>.14){ellipse(c,0,-29-jaw*2,1+jaw*2.8,0.6+jaw*2.3);c.fillStyle='#f3a4a3';c.fill();}
+    c.restore();
+  }
+  function liftedFace(x,y,scale,lift,full){
+    const c=ctx;c.save();c.globalAlpha*=lift;c.translate(x,y-9-12*lift);c.scale(scale*(1+.09*lift),scale*(1+.10*lift));
+    c.shadowColor='rgba(76,40,27,.22)';c.shadowBlur=12;c.shadowOffsetY=4;
+    ellipse(c,0,0,32+full*4,34);const g=c.createRadialGradient(-10,-18,1,5,6,48);
+    g.addColorStop(0,'#fff2da');g.addColorStop(.5,'#ffdbb5');g.addColorStop(1,'#e7a17f');
+    c.fillStyle=g;c.fill();c.shadowBlur=0;c.shadowOffsetY=0;
+    for(const s of [-1,1]){
+      c.beginPath();c.moveTo(s*12,-26);c.quadraticCurveTo(s*14,-43,s*19,-44);c.strokeStyle='#9e6a55';c.lineWidth=3;c.stroke();
+      ellipse(c,s*19,-44,4,4.5);c.fillStyle='#eeb58d';c.fill();
+      ellipse(c,s*13,-7,8,10);c.fillStyle='#fff8ec';c.fill();
+      ellipse(c,s*13,-6,4.6,6.1);c.fillStyle='#473331';c.fill();
+      ellipse(c,s*14.4,-8.7,1.8,2.4);c.fillStyle='#fff';c.fill();
+      ellipse(c,s*(24+full*1.7),8,9+full*4,8+full*3);c.fillStyle='rgba(239,145,132,.35)';c.fill();
+    }
+    // Open, characterful swallow with a fine circular whisker, then close.
+    ellipse(c,0,17,11.5,13.5);c.strokeStyle='#965f4e';c.lineWidth=1.55;c.stroke();
+    ellipse(c,0,18,5.1,7.6);c.fillStyle='#653e3a';c.fill();
+    ellipse(c,0,22,3.2,2.5);c.fillStyle='#f2a7a0';c.fill();
+    c.restore();
+  }
+  function playerPaint(){
+    if(!player)return;
+    const c=ctx,p=mapPosition(),angle=heading(),full=clamp01(state.fullness/biteMax()),jaw=biteVisual(),scale=larvaLevelSize();
+    const lift=digest>0?Math.sin(Math.PI*clamp01(1-digest/.64))**.82:0;
+    c.save();if(blink>0){c.shadowColor='#f05a59';c.shadowBlur=13;}
+    topHead(p.x,p.y,scale,angle,jaw,full,1-lift*.92);
+    if(lift>.02)liftedFace(p.x,p.y,scale,lift,full);
+    c.restore();
+  }
+  W.landTopWorm={body,player:playerPaint,revision:'v0.2.13-topview',test:()=>({crawling:isCrawling(),bite:biteVisual(),digest,fullness:state?.fullness,bodyPoints:bodyLine.length,extended:bodyTotal>.08})};
+})();
 
 </script>
 <script src="./home3d.js?v=031"></script>
