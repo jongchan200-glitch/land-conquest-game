@@ -69,3 +69,8 @@
 .ww-volume output{min-width:29px;text-align:right}
 @media(max-width:375px){#wwHud{height:90px;grid-template-columns:69px minmax(0,1fr) 89px;padding:4px;gap:2px}.ww-knot{width:68px;height:68px}.ww-knot strong{font-size:26px}.ww-center{height:69px;padding:5px 3px}.ww-capture strong{font-size:21px}.ww-side{height:69px}.ww-hearts span{font-size:17px}.ww-coin{font-size:12px}.land-lobby .home-nav button span{font-size:9px}.land-lobby .home-play-copy strong{font-size:19px}}
 @media(max-height:690px){.land-lobby .home-title{padding-top:0}.land-lobby .home-title h1{font-size:clamp(32px,9vw,46px)}.land-lobby .home-summary{height:30px;margin-bottom:6px}.land-lobby .home-play{height:58px}.land-lobby .home-nav{margin-top:6px}.land-lobby .home-nav button{min-height:50px}.land-lobby .home-drag-tip{display:none}}
+
+/* Transient gameplay messages never cover the carved top strip. */
+#tip{top:calc(env(safe-area-inset-top) + 110px)!important;z-index:6}
+#overlay .sheet .buttons button[disabled]{opacity:.55;cursor:not-allowed;filter:grayscale(.35)}
+@media(max-height:560px){#wwHud{height:74px;grid-template-columns:62px minmax(0,1fr) 80px}.ww-knot{width:60px;height:60px}.ww-center,.ww-side{height:60px}.ww-hearts span{font-size:15px}.ww-center{padding:3px}.ww-knot strong{font-size:21px}.ww-capture strong{font-size:18px}}
