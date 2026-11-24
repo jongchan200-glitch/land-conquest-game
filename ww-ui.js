@@ -293,7 +293,7 @@ const playSfx=(()=>{
   src.start(at);src.stop(at+duration+.005);
  }
  return function(kind){
-  if(!Object.hasOwn(limits,kind))return false;
+  if(!Object.prototype.hasOwnProperty.call(limits,kind))return false;
   const nowMs=performance.now();
   if(nowMs-(last[kind]??-1e9)<limits[kind])return false;
   const c=audio();if(!c)return false;
