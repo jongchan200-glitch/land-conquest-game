@@ -579,7 +579,7 @@ function moveTestAnalog(dir,dt){
  const moved=Math.hypot(nx-player.wx,ny-player.wy)>.0001;
  if(!moved)return false;
  const gained=Math.hypot(nx-player.wx,ny-player.wy);labDistance+=gained;
- if(clock-lastLabFootprint>.14){lastLabFootprint=clock;labFootprints.push({x:player.wx,y:player.wy,time:clock});if(labFootprints.length>44)labFootprints.shift();}
+ if(labDistance-lastLabFootprint>.8){lastLabFootprint=labDistance;labFootprints.push({x:player.wx,y:player.wy,time:clock});if(labFootprints.length>44)labFootprints.shift();}
  player.wx=nx;player.wy=ny;player.x=Math.floor(nx);player.y=Math.floor(ny);
  player.analog=true;player.phase=(player.phase+dt*speed*.95)%1;
  player.walkCycle=(player.walkCycle||0)+dt*speed*.75;
