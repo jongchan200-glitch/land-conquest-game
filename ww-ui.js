@@ -351,11 +351,12 @@ if(app&&saveBtn){
  const hud=document.createElement('div');hud.id='wwHud';hud.setAttribute('aria-label','게임 정보');
  hud.innerHTML='<div class="ww-knot" id="wwLevel" aria-label="레벨"><small>Lv.</small><strong id="wwLevelValue">1</strong></div>'+
  '<div class="ww-center"><div class="ww-capture"><strong id="wwCapture">0%</strong><small id="wwZone">1/6</small></div><div class="ww-bites" id="wwBites"></div><div class="ww-stretch" aria-label="몸 길이"><i id="wwStretch"></i></div></div>'+
- '<div class="ww-side"><div class="ww-hearts" id="wwHearts"><span>♥</span><span>♥</span><span>♥</span></div><div class="ww-coin"><span class="ww-gold">✦</span><strong id="wwCoins">0</strong></div><div class="ww-side-footer" id="wwSideFooter"><button id="wwPauseBtn" aria-label="일시정지" title="일시정지">Ⅱ</button></div></div>';
+ '<div class="ww-side"><div class="ww-hearts" id="wwHearts"><span>♥</span><span>♥</span><span>♥</span></div><button type="button" class="ww-coin ww-coin-help" id="wwCoinHelp" title="코인 보상표 보기" aria-label="코인 획득 규칙 보기"><span class="ww-gold">✦</span><strong id="wwCoins">0</strong></button><div class="ww-side-footer" id="wwSideFooter"><button id="wwPauseBtn" aria-label="일시정지" title="일시정지">Ⅱ</button></div></div>';
  app.appendChild(hud);
  saveBtn.textContent='⌂ 저장';saveBtn.title='저장 후 종료';saveBtn.setAttribute('aria-label','저장 후 홈으로 돌아가기');
  hud.querySelector('#wwSideFooter').prepend(saveBtn);
  hud.querySelector('#wwPauseBtn').addEventListener('click',()=>{if(typeof showPanel==='function'&&!window.__homeIsOpen)showPanel('menu')});
+ hud.querySelector('#wwCoinHelp').addEventListener('click',()=>{if(typeof showPanel==='function'&&!window.__homeIsOpen&&state?.hearts>0)showPanel('coinRules')});
  window.wwUpdateHud=function(){
   if(typeof state==='undefined'||!state)return;
   document.getElementById('wwLevelValue').textContent=state.level;
