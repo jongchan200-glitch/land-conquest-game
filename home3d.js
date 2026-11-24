@@ -164,7 +164,7 @@
   }
   requestAnimationFrame(draw);
   canvas.addEventListener('pointerdown',e=>{dragged=true;dragID=e.pointerId;lastX=e.clientX;lastY=e.clientY;velocity=0;canvas.setPointerCapture(e.pointerId);e.preventDefault()});
-  canvas.addEventListener('pointermove',e=>{if(e.pointerId!==dragID||!dragged)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw+=dx*.0125;pitch=Math.max(-.30,Math.min(.30,pitch+dy*.0035));velocity=Math.max(-3.4,Math.min(3.4,dx*.045));e.preventDefault()});
+  canvas.addEventListener('pointermove',e=>{if(e.pointerId!==dragID||!dragged)return;const dx=e.clientX-lastX;lastX=e.clientX;lastY=e.clientY;yaw+=dx*.0125;/* horizontal 360° only: vertical swipe does not tilt the character */velocity=Math.max(-3.4,Math.min(3.4,dx*.045));e.preventDefault()});
   function end(e){if(e.pointerId!==dragID)return;dragged=false;dragID=null}
   for(const n of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(n,end);
   canvas.addEventListener('keydown',e=>{if(e.code==='ArrowLeft'||e.code==='ArrowRight'){yaw+=(e.code==='ArrowLeft'?-1:1)*.22;velocity=0;e.preventDefault()}});
