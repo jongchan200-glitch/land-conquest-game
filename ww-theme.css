@@ -101,3 +101,15 @@
 /* Wagu Wagu: accessible, tap-friendly sound previews and controls. */
 .ww-language-row [data-ww-audio-test]{min-height:40px;margin:2px 0 10px;font-size:13px;touch-action:manipulation}
 .ww-language-row #wwAudioHint{display:block;color:#e9d5ab;line-height:1.5;font-size:11px}
+
+/* Wagu Wagu v0.2.24: discoverable coin rewards without crowding the 390px HUD. */
+#wwCoinHelp{width:100%;background:transparent;border:0;padding:0 3px;cursor:pointer;touch-action:manipulation;position:relative}
+#wwCoinHelp::after{content:"?";font-size:9px;line-height:13px;text-align:center;width:13px;height:13px;flex:none;border-radius:50%;color:#603718;background:#fff1bf;box-shadow:0 1px 2px #261506}
+#wwCoinHelp:active{filter:brightness(1.28)}
+.ww-coin-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:11px 0}
+.ww-coin-rules>div{display:flex;justify-content:space-between;align-items:center;gap:7px;padding:10px 9px;border:1px solid #c7a06b99;border-radius:10px;background:linear-gradient(130deg,#75513488,#3f382998);color:#fff0ce;font-size:12px}
+.ww-coin-rules>div:last-child{grid-column:span 2;background:linear-gradient(100deg,#8b6337bb,#61412688);border-color:#efd18c}
+.ww-coin-rules>div strong{font-size:17px;color:#ffd263;text-shadow:0 1px 1px #2a1b0c}
+.ww-home-coin-rules p{margin:8px 0;font-size:12px;line-height:1.6}
+.ww-home-coin-rules small{font-size:11px;color:#e0ceaf}
+@media(max-width:350px){.ww-coin-rules>div{font-size:10px;padding:8px 5px}.ww-coin-rules>div strong{font-size:14px}}
