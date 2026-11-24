@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
-<!-- v0.2.16: correct habitat boundary isolation; retain v0.2.15 features -->
+<!-- v0.2.17: live tunnel mint outline; distinguish the fixed full-board border from unlock boundaries -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -705,6 +705,30 @@ function prepareSoftPhoto(){
  softPhotoSource=photo.src;softPhotoReady=true;return true;
 }
 const revealAmount=()=>completionReveal?Math.min(1,Math.pow(completionReveal.elapsed/completionReveal.duration,.9)):0;
+// Mint-colored live tunnel: distinct from the already claimed territory.
+// Edge lines only follow newly eaten tiles, not habitat unlock boundaries.
+function paintActiveTunnel(view){
+ if(!trail.length)return;
+ ctx.save();
+ const t=.78+.14*Math.sin(clock*4.6);
+ for(let y=Math.max(0,view.y0-1);y<Math.min(CH,view.y1+1);y++){
+  for(let x=Math.max(0,view.x0-1);x<Math.min(CW,view.x1+1);x++){
+   if(world[at(x,y)]!==CUT)continue;
+   const px=x*T,py=y*T;
+   ctx.fillStyle='rgba(88,237,175,.20)';
+   ctx.fillRect(px,py,T,T);
+   ctx.beginPath();
+   if(y===0||world[at(x,y-1)]!==CUT){ctx.moveTo(px,py);ctx.lineTo(px+T,py)}
+   if(x===CW-1||world[at(x+1,y)]!==CUT){ctx.moveTo(px+T,py);ctx.lineTo(px+T,py+T)}
+   if(y===CH-1||world[at(x,y+1)]!==CUT){ctx.moveTo(px+T,py+T);ctx.lineTo(px,py+T)}
+   if(x===0||world[at(x-1,y)]!==CUT){ctx.moveTo(px,py+T);ctx.lineTo(px,py)}
+   ctx.shadowColor='#45ffc0';ctx.shadowBlur=8;
+   ctx.lineWidth=3.5;ctx.strokeStyle='rgba(91,255,186,'+t+')';ctx.stroke();
+   ctx.shadowBlur=0;
+  }
+ }
+ ctx.restore();
+}
 function paintWorld(){
   // Drawing is clipped to the full board, but photo scaling works only for
   // the currently visible source rectangle, preserving the EXACT input pixels.
@@ -722,6 +746,8 @@ function paintWorld(){
   ctx.fillStyle='#092c3030';ctx.fillRect(x0,y0,vw,vh);
   rebuildSlab();ctx.save();ctx.globalAlpha=1-revealAmount();ctx.drawImage(slabCache,slabBounds.x0*T,slabBounds.y0*T);ctx.restore();
   for(const b of biteMarks)paintGrowingBite(b);
+  // Freshly eaten tunnel (CUT) is NOT owned land. Only a return to OWN closes a capture.
+  paintActiveTunnel(view);
   if(fallPieces.length){const drop=Math.pow(clamp(fallTimer/.72,0,1),2)*180,
     alpha=clamp((.79-fallTimer)/.32,0,1);
     for(const id of fallPieces){const x=id%CW,y=Math.floor(id/CW);
