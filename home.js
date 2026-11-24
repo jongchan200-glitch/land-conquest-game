@@ -97,7 +97,7 @@
    html=`<div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
    <button type="button" class="home-action" data-home-action="fullscreen">⛶ 전체 화면 전환</button>
    <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
-   <div class="info-card"><b>저장</b><br>현재 휴대폰 브라우저에 자동 저장해. 기기 간 동기화와 온라인 계정은 아직 연결되지 않았어.</div>
+   <div class="info-card"><b>장기 탐험 저장</b><br>5초마다 자동 저장하고 종료·죽음에도 정복한 지역을 지켜줘. 기기/브라우저별 로컬 저장이므로 데이터를 지우면 복원되지 않을 수 있어.<br><button type="button" class="home-action" data-home-action="save-export">↓ 진행 데이터 백업</button><label class="home-action" style="display:inline-block;cursor:pointer">↑ 백업 파일 불러오기<input id="homeSaveImport" type="file" accept=".json,application/json" style="display:none"></label></div>
    <p class="notice">홈 구성과 메뉴 항목은 지옥낙하 V0.7의 구조를 옮긴 것이고, 게임별 데이터·코인은 서로 별개야.</p>`;
   }else if(which==='album'){
    html=collectionHTML();
@@ -109,7 +109,18 @@
  document.getElementById('homePlay').addEventListener('click',leaveHome);
  document.getElementById('homeDrawerClose').addEventListener('click',closeDrawer);
  drawer.addEventListener('click',e=>{if(e.target===drawer)closeDrawer()});
- drawer.addEventListener('change',e=>{if(e.target.id==='homeBadgeSwitch'){
+ drawer.addEventListener('change',async e=>{
+  if(e.target.id==='homeSaveImport'&&e.target.files?.[0]){
+   try{
+    const raw=await e.target.files[0].text(),parsed=JSON.parse(raw);
+    if(parsed.version!==2||!Array.isArray(parsed.tiles)||parsed.tiles.length!==parsed.mapCols*parsed.mapRows||parsed.tiles.length>2000000||!(parsed.stage>=1&&parsed.stage<=64))throw Error('백업 형식이 달라');
+    const previous=localStorage.getItem(SAVE_KEY);
+    if(previous)localStorage.setItem(SAVE_KEY+'-before-import',previous);
+    localStorage.setItem(SAVE_KEY,raw);window.location.reload();
+   }catch(err){alert('백업 파일을 확인해줘. 잘못된 파일은 불러올 수 없어.')}
+   return;
+  }
+  if(e.target.id==='homeBadgeSwitch'){
    try{localStorage.setItem(previewKey,e.target.checked?'1':'0')}catch(err){}
    window.home3D?.setBadge(e.target.checked)
  }});
@@ -132,6 +143,11 @@
     state.coins-=prices[skin];state.skins.owned.push(skin);
    }
    state.skins.equipped=skin;save();updateHUD();refreshStats();renderPanel('character');return;
+  }
+  if(action==='save-export'){
+   save();const data=localStorage.getItem(SAVE_KEY);if(!data)return;
+   const blob=new Blob([data],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='chew-and-claim-stage-'+state.stage+'-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);return;
   }
   if(action==='daily-coin'){if(!dailyUsed()){try{localStorage.setItem(dailyKey,dayId())}catch(e){}state.coins+=30;save();updateHUD();refreshStats();renderPanel('shop');}return}
   
