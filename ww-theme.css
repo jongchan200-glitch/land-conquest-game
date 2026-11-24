@@ -148,3 +148,9 @@ body.ww-lab-mode #tip{top:calc(env(safe-area-inset-top) + 186px)!important;z-ind
 @media(max-height:690px){#labControls{padding-top:5px;padding-bottom:5px;gap:2px}
 .lab-choice button{min-height:28px}.lab-hint{display:none}
 body.ww-lab-mode #tip{top:calc(env(safe-area-inset-top) + 158px)!important}}
+
+/* QA v0.2.26: Keep the real play canvas visible below the lab controls.
+   Lobby canvases and their backdrops must never cover the active test scene. */
+body.ww-lab-mode #scene{display:block!important;visibility:visible!important;opacity:1!important;z-index:0!important}
+body.ww-lab-mode #landHome,body.ww-lab-mode #homeDrawer{display:none!important}
+body.ww-lab-mode #vignette{pointer-events:none}
