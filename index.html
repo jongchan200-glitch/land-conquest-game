@@ -1554,7 +1554,44 @@ function paintPlayer(){
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);if(testMode)paintTestArenaFloor();else{paintWorld();paintHabitatWalls();paintCoinPickups();}paintMonsters();if(testMode)paintTestWarnings();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintCoinFlights();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
+// The lab uses a DIRECT viewport-to-world camera rather than the gameplay
+// camera pipeline. This is the missing bridge that left the arena offscreen
+// on some mobile browsers even though the lab controls were active.
+function render(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ paintFloor();
+ if(testMode){
+  if(!player||!Number.isFinite(player.wx)||!Number.isFinite(player.wy))analogCenter();
+  const sx=testArenaZoom(),pos=mapPosition();
+  // Fit the stage in the playable area (under the selector, above joystick).
+  const left=screenW*.5-pos.x*sx,top=screenH*.515-pos.y*sx;
+  cam.x=pos.x;cam.y=pos.y;cam.scale=sx;
+  ctx.save();
+  ctx.translate(left,top);ctx.scale(sx,sx);
+  try{
+   paintTestArenaFloor();
+   paintMonsters();
+   paintTestWarnings();
+   (window.landTopWorm?.body||paintStretchedBody)();
+   paintFX();paintGas();
+   (window.landTopWorm?.player||paintPlayer)();
+  }finally{ctx.restore();}
+  // An explicit lab indicator verifies that the stage itself rendered,
+  // instead of showing controls over an otherwise empty home background.
+  ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.font='800 11px system-ui';ctx.textAlign='center';
+  ctx.fillStyle='#eafbe2';ctx.shadowColor='#04292b';ctx.shadowBlur=6;
+  ctx.fillText('● '+LAB_ARENAS[labZone-1].name+' · 몬스터 '+enemy.filter(e=>e.zone===labZone).length+'마리',screenW*.5,screenH*.78);
+  ctx.restore();return;
+ }
+ const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;
+ ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);
+ paintWorld();paintHabitatWalls();paintCoinPickups();paintMonsters();
+ (window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();
+ (window.landTopWorm?.player||paintPlayer)();ctx.restore();
+ paintCoinFlights();paintZoneCinematic();
+ if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}
+}
 let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.15)return;lastMini=clock;const w=mini.width,h=mini.height,iw=w/CW,ih=h/CH;minictx.clearRect(0,0,w,h);minictx.fillStyle='#cdb58f';minictx.fillRect(0,0,w,h);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const v=world[at(x,y)];if(v===OWN){minictx.fillStyle='#6bc5a4';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}else if(v===CUT){minictx.fillStyle='#f2cd8f';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}}for(const coin of state.coinPickups||[]){if(coin.zone>state.unlockedZone||world[coin.id]!==FREE)continue;minictx.fillStyle='#ffdc51';minictx.beginPath();minictx.arc((coin.id%CW+.5)*iw,(Math.floor(coin.id/CW)+.5)*ih,2.3,0,6.3);minictx.fill()}for(const e of enemy){if(e.zone>state.unlockedZone)continue;minictx.fillStyle='#bb6767';minictx.beginPath();minictx.arc(e.x*iw,e.y*ih,3,0,6.3);minictx.fill()}minictx.fillStyle='#fff';minictx.beginPath();minictx.arc((player.x+.5)*iw,(player.y+.5)*ih,4,0,6.3);minictx.fill();
  const r=HABITATS[state.unlockedZone-1];minictx.fillStyle='rgba(6,19,29,.62)';
  minictx.fillRect(0,0,w,r.y0*ih);minictx.fillRect(0,r.y1*ih,w,h-r.y1*ih);
@@ -1570,10 +1607,22 @@ function scheduleFrame(){
  frameQueued=true;
  requestAnimationFrame(t=>{frameQueued=false;loop(t);});
 }
+let lastLabFailure=0;
 function loop(t){
  if(!lastFrame)lastFrame=t;
  const dt=clamp((t-lastFrame)/1000,0,.055);lastFrame=t;
- advance(dt);cameraUpdate(dt);render();drawMini();scheduleFrame();
+ try{
+  advance(dt);if(!testMode)cameraUpdate(dt);
+  render();drawMini();
+ }catch(err){
+  // A single transient canvas/render error must not permanently kill RAF.
+  if(!testMode)console.error('Wagu frame error',err);
+  else if(t-lastLabFailure>2500){
+   lastLabFailure=t;
+   console.error('Wagu test arena render error',err);
+   toast('테스트 화면 복구 중 · 다시 그리기',2);
+  }
+ }finally{scheduleFrame();}
 }
 function testArenaZoom(){
  const radius=Math.max(0,...enemy.filter(e=>e.zone===labZone).map(monsterRadius));
@@ -1583,7 +1632,14 @@ function redrawTestArena(resetCanvas=false){
  if(!testMode)return;
  if(resetCanvas)resize();
  lastFrame=0;
- try{render();}catch(err){console.error('Test arena render failed',err);}
+ try{render()}catch(err){
+  console.error('Test arena draw retry',err);
+  // Standalone screen-space recovery notice instead of a silent blank stage.
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#163b39';ctx.fillRect(0,0,screenW,screenH);
+  ctx.font='bold 15px system-ui';ctx.fillStyle='#ffe4a6';ctx.textAlign='center';
+  ctx.fillText('테스트 화면 복구 중',screenW/2,screenH/2);
+ }
  scheduleFrame();
 }
 function resize(){screenW=canvas.clientWidth||innerWidth;screenH=canvas.clientHeight||innerHeight;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(screenW*dpr);canvas.height=Math.round(screenH*dpr)}
@@ -1665,6 +1721,7 @@ function startTestArena(){
  window.__homeIsOpen=false;
  $('overlay').classList.remove('open');modal=null;playStarted=true;
  document.body.classList.add('ww-lab-mode');$('labControls').hidden=false;
+ canvas.hidden=false;canvas.style.display='block';canvas.style.visibility='visible';canvas.style.opacity='1';
  miniOn=false;mini.classList.remove('visible');
  switchTestZone(1);setTestEvolution(1);
  markSlabDirty();redrawTestArena(true);
