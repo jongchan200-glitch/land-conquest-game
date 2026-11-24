@@ -101,7 +101,20 @@ const HABITATS=[
  {x0:24,y0:76,x1:248,y1:380,name:'거인의 길',target:80},
  {x0:0,y0:0,x1:CW,y1:CH,name:'최후의 정원',target:GOAL}
 ];
-const zoneOf=(x,y)=>{for(let z=0;z<HABITATS.length;z++){const b=HABITATS[z];if(x>=b.x0&&x<b.x1&&y>=b.y0&&y<b.y1)return z+1;}return HABITATS.length;};
+// Independent six-room test arena; runtime-only, never written to adventure saves.
+let testMode=false,labZone=1,webSlow=0;
+const LAB_ARENAS=[30,99,168,237,306,375].map((y,i)=>({
+ x0:132,x1:175,y0:y,y1:y+34,name:HABITATS[i].name,zone:i+1
+}));
+const LAB_EVOLUTIONS=[1,11,21,31,41];
+const zoneOf=(x,y)=>{
+ if(testMode){
+  for(let i=0;i<LAB_ARENAS.length;i++){const b=LAB_ARENAS[i];if(x>=b.x0&&x<b.x1&&y>=b.y0&&y<b.y1)return i+1;}
+  return 0;
+ }
+ for(let z=0;z<HABITATS.length;z++){const b=HABITATS[z];if(x>=b.x0&&x<b.x1&&y>=b.y0&&y<b.y1)return z+1;}
+ return HABITATS.length;
+};
 const zoneAllowed=(x,y)=>zoneOf(x,y)<=state.unlockedZone;
 const zoneTarget=()=>HABITATS[Math.max(0,Math.min(HABITATS.length-1,(state?.unlockedZone||1)-1))].target;
 let zoneTransition=null,zoneBarrierNotice=-99;
@@ -129,20 +142,20 @@ const MAP_AREA_MULTIPLIER=(CW*CH)/(LEGACY_CW*LEGACY_CH); // full 4× expansion o
 const BASE_TERRITORY_WIDTH=8; // Only zone 1 begins with an owned shore
 const START_X=80,START_Y=216;
 
-// The first monster tier should read as BIG even on a zoomed-out map.
-// Sizes are in WORLD pixels and independent of the camera's zoom factor;
-// they do not shrink as the larva levels up. Later worlds can add larger tiers.
-const MONSTER_ZONE_SCALE=[1,1.18,1.38,1.58,1.78,1.98];
+// Creature size progresses by habitat instead of a universal 3x minimum.
+ // Values are *diameter ratios* relative to the larva head. Preserved species
+ // variety and individual sizeScale give small and large monsters together.
+const MONSTER_ZONE_SCALE=[1.55,2.10,2.65,3.15,3.85,4.60];
 const monsterBaseRadius=e=>e.type==='nest'?43:e.type==='beetle'?37:e.type==='spiky'?35:e.type==='shell'?33:31;
-// Every monster stays at least three times wider than the visible caterpillar head.
- // Higher habitats keep the same approved monster shapes at even larger scales.
-const monsterRadius=e=>Math.max(
- 130*larvaLevelSize(),
- monsterBaseRadius(e)*MONSTER_ZONE_SCALE[Math.max(0,Math.min(HABITATS.length-1,(e.zone||1)-1))]*(e.sizeScale||1)*2.15
-);
+const monsterRadius=e=>{
+ const zone=Math.max(0,Math.min(5,(e.zone||1)-1));
+ const rarity=e.type==='nest'?1.14:e.type==='beetle'?1.08:e.type==='spiky'?1.04:1;
+ const ratio=Math.max(zone===0?1.5:MONSTER_ZONE_SCALE[zone]*.90,
+   MONSTER_ZONE_SCALE[zone]*(e.sizeScale||1)*rarity);
+ return 65*1.15*larvaLevelSize()*ratio*.5;
+};
 const monsterHitRadius=e=>monsterRadius(e)*.78/T;
-// Monster radius follows the larva's growth to preserve the visual size ratio.
-// Collision stays inside the visible shell, excluding decorative outer feet.
+// Collision is conservative and excludes decorative feet/wings.
 // Five-stage cute top-view evolution locked to the approved concept sheet.
 const evolutionStage=()=>Math.min(5,1+Math.floor(Math.max(0,state.level-1)/10));
 const larvaLevelSize=()=>[1,1.14,1.29,1.45,1.63][evolutionStage()-1]*(1+Math.min(9,(state.level-1)%10)*.004);
@@ -171,6 +184,7 @@ const markSlabDirty=()=>{slabDirty=true};
 let state,world,player,trail=[],enemy=[],chunks=[],particles=[],floatTexts=[],controls={x:0,y:0},held=false,pressed={},playStarted=false,modal='intro',modalTab='intro',miniOn=false;
 let clock=0,acc=0,lastFrame=0,cam={x:90,y:600,scale:1.15},screenW=390,screenH=844,dpr=1,digest=0,chewEffect=0,fallTimer=0,fallPieces=[],captureAfterFall=0,blink=0,toastTimer=0,saveAcc=0,autoPath=[],autoOn=false,levelMoment=0,walkPhase=0,trailBase=0,transientFinish=false,fxSound=null;
 let pendingCoinPath=[],coinFlights=[];
+let labAttackMessage=0;
 let lastPlayerSnapshot=null;
 // Continuous analog steering is separate from the unchanged tile/territory simulation.
 // x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
@@ -315,6 +329,7 @@ const chewDelay=()=>Math.max(.22,.68-(state.level-1)*.014-Math.floor(state.level
 const digestionTime=()=>Math.max(.6,1.85-(state.upgrades.digest||0)*.22-(state.level-1)*.015);
 function defaultState(){return {version:2,stage:1,level:1,xp:0,coins:65,hearts:3,captures:0,fullness:0,upgrades:{capacity:0,speed:0,digest:0,biteArea:0,moveSpeed:0},skins:{owned:['peach'],equipped:'peach'},album:{},tiles:null,px:3,py:24,monsters:null,adCount:0,unlockedZone:1,timestamp:Date.now()}}
 function save(){
+  if(testMode)return false; // No test arena action may touch the real game save.
   try{
     if(!state||!world)return false;
     const data={...state,mapCols:CW,mapRows:CH,tiles:Array.from(world),px:player.x,py:player.y,activeTrail:trail.slice(),activeBody:bodyLine.map(p=>({x:p.x,y:p.y})),playerWorld:{x:player.wx,y:player.wy},savedCameraZoom:manualCameraZoom,
@@ -536,7 +551,8 @@ function moveAnalog(dir,dt){
   // passage is free movement, whereas eating NEW material requires the action.
   // Outside: creep through each edible cell instead of sprinting to its edge
   // and visibly freezing for most of a second. Total time per cell stays slow.
-  const speed=from===OWN?3.25+Math.min(2.5,(state.level-1)*.028+(state.upgrades.moveSpeed||0)*.48):Math.min(4.5,1.22+(state.level-1)*.055+(state.upgrades.speed||0)*.12);
+  const walkBase=from===OWN?3.25+Math.min(2.5,(state.level-1)*.028+(state.upgrades.moveSpeed||0)*.48):Math.min(4.5,1.22+(state.level-1)*.055+(state.upgrades.speed||0)*.12);
+  const speed=walkBase*(testMode&&webSlow>0?.55:1);
   const stride=Math.min(.12,dt*speed);
   let nx=clamp(player.wx+ux*stride,.006,CW-.006),ny=clamp(player.wy+uy*stride,.006,CH-.006);
   const tx=Math.floor(nx),ty=Math.floor(ny);
@@ -754,7 +770,7 @@ if(trail.length){for(const e of enemy){if(e.zone>state.unlockedZone)continue;
     loseLife('몬스터가 애벌레 몸을 건드렸어');return;
   }
 }}}
-function advance(dt){clock+=dt;updateGut(dt);for(const p of coinFlights)p.age+=dt;coinFlights=coinFlights.filter(p=>p.age<p.duration);
+function advance(dt){clock+=dt;webSlow=Math.max(0,webSlow-dt);labAttackMessage=Math.max(0,labAttackMessage-dt);updateGut(dt);for(const p of coinFlights)p.age+=dt;coinFlights=coinFlights.filter(p=>p.age<p.duration);
  if(completionReveal){completionReveal.elapsed+=dt;if(completionReveal.elapsed>=completionReveal.duration){completionReveal=null;showPanel('complete')}return}
  if(zoneTransition){zoneTransition.elapsed+=dt;if(zoneTransition.elapsed>=zoneTransition.duration)zoneTransition=null;}
 if(bodyJoin){bodyJoin.life-=dt;if(bodyJoin.life<=0)bodyJoin=null;}if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('tip').classList.remove('show')}if(!playStarted||modal||zoneTransition)return;
@@ -828,6 +844,13 @@ function endPinch(ev){
 }
 for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,endPinch);
 function cameraUpdate(dt){
+ if(testMode){
+  const pos=mapPosition(),goalZoom=.80;
+  cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*6);
+  cam.x+=(pos.x-cam.x)*Math.min(1,dt*6);
+  cam.y+=(pos.y-cam.y)*Math.min(1,dt*6);
+  return;
+ }
   const cur=mapPosition(),progress=capture()/GOAL;
   // Keep the world noticeably wider in view; leveling up must never zoom us closer.
   let goalZoom=clamp(.78-Math.min(1,progress)*.25,.43,.82);
@@ -1406,7 +1429,7 @@ function paintPlayer(){
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);paintWorld();paintHabitatWalls();paintCoinPickups();paintMonsters();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintCoinFlights();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
+function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);if(testMode)paintTestArenaFloor();else{paintWorld();paintHabitatWalls();paintCoinPickups();}paintMonsters();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintCoinFlights();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
 let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.15)return;lastMini=clock;const w=mini.width,h=mini.height,iw=w/CW,ih=h/CH;minictx.clearRect(0,0,w,h);minictx.fillStyle='#cdb58f';minictx.fillRect(0,0,w,h);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const v=world[at(x,y)];if(v===OWN){minictx.fillStyle='#6bc5a4';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}else if(v===CUT){minictx.fillStyle='#f2cd8f';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}}for(const coin of state.coinPickups||[]){if(coin.zone>state.unlockedZone||world[coin.id]!==FREE)continue;minictx.fillStyle='#ffdc51';minictx.beginPath();minictx.arc((coin.id%CW+.5)*iw,(Math.floor(coin.id/CW)+.5)*ih,2.3,0,6.3);minictx.fill()}for(const e of enemy){if(e.zone>state.unlockedZone)continue;minictx.fillStyle='#bb6767';minictx.beginPath();minictx.arc(e.x*iw,e.y*ih,3,0,6.3);minictx.fill()}minictx.fillStyle='#fff';minictx.beginPath();minictx.arc((player.x+.5)*iw,(player.y+.5)*ih,4,0,6.3);minictx.fill();
  const r=HABITATS[state.unlockedZone-1];minictx.fillStyle='rgba(6,19,29,.62)';
  minictx.fillRect(0,0,w,r.y0*ih);minictx.fillRect(0,r.y1*ih,w,h-r.y1*ih);
@@ -1451,6 +1474,7 @@ function buy(which){if(!['capacity','speed','digest','biteArea','moveSpeed'].inc
 // Manual save never discards an unfinished bite trail or teleports the player.
 // Stay on the game if a falling animation still needs to settle.
 function saveAndExit(){
+ if(testMode){exitTestArena();return;}
  if(fallPieces.length){toast('떨어지는 조각 정리가 끝나면 저장해 줘',2);return;}
  const prior=state.lastManualSaveAt;
  state.lastManualSaveAt=Date.now();
