@@ -138,14 +138,14 @@
    <button type="button" class="home-action" data-home-action="toggle-minimap">▦ 미니맵 ${miniOn?'끄기':'켜기'}</button>
    <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
    <div class="info-card"><b>장기 탐험 저장</b><br>5초마다 자동 저장해. 하트를 모두 잃으면 이번 구역의 점령 진행은 끝나지만, 코인과 수집 카드는 남아. 기기/브라우저별 로컬 저장이므로 데이터를 지우면 복원되지 않을 수 있어.<br><button type="button" class="home-action" data-home-action="save-export">↓ 진행 데이터 백업</button><label class="home-action" style="display:inline-block;cursor:pointer">↑ 백업 파일 불러오기<input id="homeSaveImport" type="file" accept=".json,application/json" style="display:none"></label></div>
-   <p class="notice">와그작 와그작 · 모든 언어에서 하나의 앱으로 즐길 수 있어. 광고 기능은 실제 앱 출시 전 연결 예정.</p>`;
+   <p class="notice">와구와구 · 모든 언어에서 하나의 앱으로 즐길 수 있어. 광고 기능은 실제 앱 출시 전 연결 예정.</p>`;
   }else if(which==='album'){
    html=collectionHTML();
   }
   if(which==='settings')html=window.wwSettingsMarkup?.()+html;
   content.innerHTML=html;window.wwTranslate?.(drawer);
  }
- function closeDrawer(){drawer.hidden=true;selectedPanel=''}
+ function closeDrawer(){drawer.hidden=true;selectedPanel='';if(window.__homeIsOpen)window.wwBgm?.pause()}
  home.addEventListener('click',e=>{const p=e.target.closest('[data-home-panel]');if(p){e.preventDefault();openPanel(p.dataset.homePanel)}});
  document.getElementById('homePlay').addEventListener('click',leaveHome);
  document.getElementById('homeDrawerClose').addEventListener('click',closeDrawer);
