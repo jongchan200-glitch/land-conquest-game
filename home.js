@@ -141,7 +141,7 @@
    <div class="info-card"><b>지금 점령한 영역</b><br>${capture().toFixed(1)}% / 목표 ${GOAL}%<br><small>최고 점령률은 이 기기에 기록돼.</small></div>
    <button type="button" class="home-action" data-home-action="album">▣ 수집 카드 열기</button>`;
   }else if(which==='settings'){
-   html=`<div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
+   html=`<div class="banner ww-lab-entry"><strong>🧪 몬스터·진화 테스트장</strong><div>1~6구역 몬스터를 바로 보고, 진화 1~5단계를 선택해 직접 움직여 볼 수 있어요. 일반 게임 저장과 분리돼요.</div><button type="button" class="home-action" data-home-action="test-lab">▶ 테스트장 입장</button></div><div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
    <button type="button" class="home-action" data-home-action="fullscreen">⛶ 전체 화면 전환</button>
    <button type="button" class="home-action" data-home-action="toggle-minimap">▦ 미니맵 ${miniOn?'끄기':'켜기'}</button>
    <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
@@ -178,7 +178,7 @@
  drawer.addEventListener('click',e=>{
   const b=e.target.closest('[data-home-action],[data-do]');if(!b)return;
   e.preventDefault();const action=b.dataset.homeAction||b.dataset.do;
-  if(action.startsWith('buy-')){buy(action.slice(4));refreshStats();renderPanel('shop');return}
+  if(action==='test-lab'){closeDrawer();window.__startWaguLab?.();return;}   if(action.startsWith('buy-')){buy(action.slice(4));refreshStats();renderPanel('shop');return}
   if(action==='album'){albumIndex=0;albumView='roster';openPanel('album');return}
   if(action==='toggle-preview'){showPreview=!showPreview;renderPanel('album');return;}
   if(action==='collection-next'||action==='collection-prev'){albumIndex=(albumIndex+(action==='collection-next'?1:7))%8;albumView='roster';renderPanel('album');return}
