@@ -906,7 +906,7 @@ function endPinch(ev){
 for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,endPinch);
 function cameraUpdate(dt){
  if(testMode){
-  const pos=mapPosition(),goalZoom=.80;
+  const pos=mapPosition(),goalZoom=[.80,.75,.72,.66,.60,.54][labZone-1];
   cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*6);
   cam.x+=(pos.x-cam.x)*Math.min(1,dt*6);
   cam.y+=(pos.y-cam.y)*Math.min(1,dt*6);
@@ -1602,7 +1602,7 @@ function switchTestZone(zone){
  labZone=zone;const b=LAB_ARENAS[zone-1];
  const x=Math.floor((b.x0+b.x1)*.5),y=Math.floor((b.y0+b.y1)*.5);
  player={x,y,ox:x,oy:y,dirX:1,dirY:0,phase:1,moveDuration:.26};
- analogCenter();cam.x=player.wx*T;cam.y=player.wy*T;cam.scale=.80;
+ analogCenter();cam.x=player.wx*T;cam.y=player.wy*T;cam.scale=[.80,.75,.72,.66,.60,.54][labZone-1];
  trail=[];resetBody();digest=0;webSlow=0;gutBoluses=[];gasPuffs=[];
  autoOn=false;autoPath=[];held=false;controls={x:0,y:0};
  pressed={};state.hearts=3;state.fullness=0;
