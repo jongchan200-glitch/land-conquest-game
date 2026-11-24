@@ -6,7 +6,25 @@
  if(!home)return;
  const recordsKey='land-conquest-home-records-v1',previewKey='land-conquest-home-badge-preview-v1';
  let best=0,selectedPanel='',albumIndex=0,albumView='roster',selectedCard=1;
- const roster=Array.from({length:8},(_,i)=>characters[i]||{id:'CHAR_'+String(i+1).padStart(3,'0'),name:'미공개 인물 '+String(i+1).padStart(2,'0'),english:'COMING SOON',country:'새로운 이야기',topics:Array.from({length:8},(_,j)=>j===7?'스페셜 카드':'이야기 '+(j+1))});
+ const previews=[
+  {sheet:'./assets/cards/haena-8-preview.png',size:[1536,1024],rects:Array.from({length:8},(_,i)=>[(i%4)*384,i<4?0:385,384,383]),status:'구도·디자인 시안 / 얼굴 통일 미검수'},
+  {sheet:'./assets/cards/anika-8-preview.png',size:[1199,1312],rects:Array.from({length:8},(_,i)=>[30+(i%4)*283,i<4?528:868,279,i<4?333:390]),status:'01번 대표 얼굴만 확정 / 나머지 시안'},
+  {sheet:'./assets/cards/amara-8-preview.png',size:[1502,1058],rects:Array.from({length:8},(_,i)=>[23+(i%4)*357,i<4?23:521,342,426]),status:'8장 후보 사진 / 대표 얼굴 미확정'}
+ ];
+ const amara={id:'CHAR_003',name:'아마라',english:'AMARA',country:'우간다 · 가상 설정',age:16,
+   topics:['아이를 바라보는 눈빛','책 읽어주는 오후','어르신께 나눔','요리 전 준비','공동 부엌의 요리사','옷가지 정리','따뜻한 한 그릇','옷깃을 고쳐주다']};
+ const roster=Array.from({length:8},(_,i)=>{
+   const ch=characters[i]||(i===2?amara:null)||{id:'CHAR_'+String(i+1).padStart(3,'0'),name:'미공개 인물 '+String(i+1).padStart(2,'0'),english:'COMING SOON',country:'새로운 이야기',topics:Array.from({length:8},(_,j)=>j===7?'스페셜 카드':'이야기 '+(j+1))};
+   return previews[i]?{...ch,previewSheet:previews[i].sheet,previewSize:previews[i].size,previewRects:previews[i].rects,previewStatus:previews[i].status}:ch;
+ });
+ let showPreview=true; // Visual QA only; never mutate state.album or reveal reward rarity.
+ const canPreview=ch=>showPreview&&!!ch?.previewSheet;
+ function previewArt(ch,k){
+  if(!canPreview(ch))return '';
+  const [x,y,w,h]=ch.previewRects[k-1]||ch.previewRects[0], [W,H]=ch.previewSize;
+  return '<span class="ww-card-crop" aria-label="'+ch.name+' '+k+'번 시안"><img loading="lazy" src="'+ch.previewSheet+'" alt="" style="left:'+(-x/w*100)+'%;top:'+(-y/h*100)+'%;width:'+(W/w*100)+'%;height:'+(H/h*100)+'%"></span>';
+ }
+
  const ownedAt=(i,k)=>!!state.album[roster[i].id+'_'+String(k).padStart(2,'0')];
  const ownedCount=i=>Array.from({length:8},(_,k)=>ownedAt(i,k+1)).filter(Boolean).length;
  const totalOwned=()=>roster.reduce((a,_,i)=>a+ownedCount(i),0);
@@ -47,25 +65,46 @@
  function openPanel(which){selectedPanel=which;drawer.hidden=false;renderPanel(which);document.getElementById('homeDrawerClose').focus({preventScroll:true})}
 
  function collectionHTML(){
-  const owned=totalOwned();
-  const nav=`<div class="collect-head"><div><span class="collect-kicker">THE PORTRAIT ARCHIVE</span><h3>나의 컬렉션 <em>${owned}<small> / 64</small></em></h3></div><div class="collect-orb">✦</div></div><div class="collect-progress"><span style="width:${owned/64*100}%"></span></div>`;
+  const owned=totalOwned(),ch=roster[albumIndex],n=ownedCount(albumIndex),available=roster.slice(0,3);
+  const previewTools='<div class="ww-preview-tools"><span>제작 시안 검수 · 소장 카드와 별도</span><button type="button" data-home-action="toggle-preview">'+(showPreview?'시안 숨기기':'시안 보기')+'</button></div>'+
+     '<div class="ww-person-shortcuts">'+available.map((p,i)=>'<button type="button" data-home-action="collection-person-'+i+'" class="'+(i===albumIndex?'active':'')+'">'+String(i+1).padStart(2,'0')+' · '+p.name+'</button>').join('')+'</div>';
+  const nav='<div class="collect-head"><div><span class="collect-kicker">THE PORTRAIT ARCHIVE</span><h3>나의 컬렉션 <em>'+owned+'<small> / 64</small></em></h3></div><div class="collect-orb">✦</div></div><div class="collect-progress"><span style="width:'+(owned/64*100)+'%"></span></div>'+previewTools;
   if(albumView==='detail'||albumView==='card'){
-   const i=albumIndex,ch=roster[i],n=ownedCount(i);
+   const i=albumIndex;
    if(albumView==='card'){
     const has=ownedAt(i,selectedCard),gold=selectedCard===8;
-    return nav+`<button class="collect-back" data-home-action="collection-detail">‹ ${ch.name} 카드첩</button><div class="collect-card-preview ${gold?'gold':''}">${has&&ch.image&&selectedCard===1?`<img src="${ch.image}" alt="${ch.name} 카드">`:`<div class="collect-empty-art">${has?'획득 완료 · 개별 사진 준비 중':'미획득 카드'}</div>`}<span>${String(selectedCard).padStart(2,'0')} / 08 ${gold?'✦ GOLD':''}</span></div><p class="collect-caption">${has?`수집 완료 · ${ch.topics?.[selectedCard-1]||'카드 이야기'}`:'아직 수집하지 않은 카드야'}</p>`;
+    const artwork=canPreview(ch)?previewArt(ch,selectedCard):has&&ch.image&&selectedCard===1?'<img src="'+ch.image+'" alt="'+ch.name+' 카드">':'<div class="collect-empty-art">'+(has?'획득 완료 · 개별 사진 준비 중':'미획득 카드')+'</div>';
+    return nav+'<button class="collect-back" data-home-action="collection-detail">‹ '+ch.name+' 카드첩</button>'+
+       '<div class="collect-card-preview '+(gold?'gold':'')+' '+(canPreview(ch)?'ww-preview-card':'')+'">'+artwork+'<span>'+String(selectedCard).padStart(2,'0')+' / 08 · '+(canPreview(ch)?'제작 시안':has?'수집 완료':'미획득')+'</span></div>'+
+       '<p class="collect-caption">'+(ch.topics?.[selectedCard-1]||'카드 이야기')+' · '+(has?'수집한 카드':'미획득 · 검수용 이미지')+'</p>'+
+       (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 미리보기는 실제 게임 보상을 지급하지 않아.</p>':'');
    }
-   let slots='';for(let k=1;k<=8;k++){
-    const got=ownedAt(i,k),gold=k===8,visual=got&&ch.image&&k===1;
-    slots+=`<button class="collect-slot ${got?'filled':'locked'} ${gold?'gold':''}" data-home-action="collection-card-${k}" aria-label="${ch.name} ${k}번 ${got?'획득':'미획득'}"><span class="collect-slot-art">${visual?`<img src="${ch.image}" alt="">`:got?'✦':'◇'}</span><span class="collect-slot-id">${String(k).padStart(2,'0')}${gold?' · GOLD':''}</span></button>`;
+   let slots='';
+   for(let k=1;k<=8;k++){
+    const got=ownedAt(i,k),gold=k===8,visual=canPreview(ch),image=visual?previewArt(ch,k):got&&ch.image&&k===1?'<img src="'+ch.image+'" alt="">':got?'✦':'◇';
+    slots+='<button class="collect-slot '+(got?'filled':'locked')+' '+(gold?'gold':'')+' '+(visual?'ww-preview-slot':'')+'" data-home-action="collection-card-'+k+'" aria-label="'+ch.name+' '+k+'번 '+(got?'획득':'미획득')+'">'+
+      '<span class="collect-slot-art">'+image+'</span><span class="collect-slot-id">'+String(k).padStart(2,'0')+(got?' · 보유':visual?' · 시안':gold?' · GOLD':' · 잠김')+'</span></button>';
    }
-   const profile=Array.from({length:8},(_,j)=>`<div class="collect-profile-line ${ownedAt(i,j+1)?'unlocked':''}"><span>${String(j+1).padStart(2,'0')}</span><span>${ownedAt(i,j+1)?(ch.topics?.[j]||'새로운 이야기'):'??? · 카드 획득 시 공개'}</span>${ownedAt(i,j+1)?'✧':'♢'}</div>`).join('');
-   return nav+`<button class="collect-back" data-home-action="collection-back">‹ 8명 컬렉션</button><div class="collect-person-bar"><strong>${ch.name}</strong><span>${n} / 8</span></div><div class="collect-slots">${slots}</div><h3 class="collect-section-title">한 장씩 열리는 이야기</h3><div class="collect-profile">${profile}</div><p class="notice">대표 사진만 등록된 인물의 다른 사진은 추후 원본이 확정되면 연결돼. 미획득 카드는 미리 표시하지 않아.</p>`;
+   const profile=Array.from({length:8},(_,j)=>{
+     const got=ownedAt(i,j+1);
+     return '<div class="collect-profile-line '+(got?'unlocked':'')+'"><span>'+String(j+1).padStart(2,'0')+'</span><span>'+(got||canPreview(ch)?(ch.topics?.[j]||'카드 이야기'):'??? · 카드 획득 시 공개')+'</span><small>'+(got?'수집':canPreview(ch)?'시안':'잠김')+'</small></div>';
+   }).join('');
+   return nav+'<button class="collect-back" data-home-action="collection-back">‹ 8명 컬렉션</button>'+
+     '<div class="collect-person-bar"><strong>'+ch.name+'</strong><span>'+n+' / 8 실제 획득</span></div>'+
+     '<div class="collect-slots">'+slots+'</div>'+
+     (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 제작 시안 8장을 모두 보여주는 검수 모드. 실제 수집 내역과 별도야.</p>':'')+
+     '<h3 class="collect-section-title">한 장씩 열리는 이야기</h3><div class="collect-profile">'+profile+'</div>';
   }
-  const i=albumIndex,ch=roster[i],n=ownedCount(i),portrait=ch.image;
-  const indicators=roster.map((c,k)=>`<button class="collect-dot ${k===i?'active':''}" data-home-action="collection-person-${k}" aria-label="${k+1}번째 인물">${k+1}</button>`).join('');
-  const gallery=`<div class="collect-carousel"><button class="collect-arrow" data-home-action="collection-prev" aria-label="이전 인물">‹</button><button class="collect-hero ${n?'unlocked':'missing'}" data-home-action="collection-detail"><span class="collect-hero-img">${portrait?`<img src="${portrait}" alt="${ch.name} 대표 사진">`:'<span class="collect-hidden-person">✧</span>'}</span><span class="collect-hero-copy"><small>PORTRAIT ${String(i+1).padStart(2,'0')} / 08</small><strong>${ch.name}</strong><span>${n}/8 COLLECTED · ${pctCards(i)}%</span><i>${n?'카드첩 펼치기':'빈 카드첩 펼치기'} ↗</i></span></button><button class="collect-arrow" data-home-action="collection-next" aria-label="다음 인물">›</button></div>`;
-  return nav+gallery+`<div class="collect-dots">${indicators}</div><p class="collect-caption">좌우로 인물을 넘기고 카드를 눌러 8칸 카드첩을 열어봐.</p><div class="collect-mini-roster">${roster.map((c,k)=>`<button data-home-action="collection-person-${k}" class="${k===i?'active':''}">${String(k+1).padStart(2,'0')} · ${ownedCount(k)}/8</button>`).join('')}</div>`;
+  const indicators=roster.map((c,k)=>'<button class="collect-dot '+(k===albumIndex?'active':'')+'" data-home-action="collection-person-'+k+'" aria-label="'+(k+1)+'번째 인물">'+(k+1)+'</button>').join('');
+  const portrait=canPreview(ch)?previewArt(ch,1):ch.image?'<img src="'+ch.image+'" alt="'+ch.name+' 대표 사진">':'<span class="collect-hidden-person">✧</span>';
+  const gallery='<div class="collect-carousel"><button class="collect-arrow" data-home-action="collection-prev" aria-label="이전 인물">‹</button>'+
+    '<button class="collect-hero '+(n?'unlocked':'missing')+'" data-home-action="collection-detail"><span class="collect-hero-img '+(canPreview(ch)?'ww-preview-hero':'')+'">'+portrait+'</span>'+
+    '<span class="collect-hero-copy"><small>PORTRAIT '+String(albumIndex+1).padStart(2,'0')+' / 08</small><strong>'+ch.name+'</strong>'+
+    '<span>실제 보유 '+n+'/8 · '+(canPreview(ch)?'8장 시안 확인 가능':pctCards(albumIndex)+'%')+'</span><i>카드첩 펼치기 ↗</i></span></button>'+
+    '<button class="collect-arrow" data-home-action="collection-next" aria-label="다음 인물">›</button></div>';
+  return nav+gallery+'<div class="collect-dots">'+indicators+'</div><p class="collect-caption">좌우로 넘겨 인물 선택 · 카드를 눌러 8장 시안을 확인해봐.</p>'+
+    '<div class="collect-mini-roster">'+roster.map((c,k)=>'<button data-home-action="collection-person-'+k+'" class="'+(k===albumIndex?'active':'')+'">'+String(k+1).padStart(2,'0')+' · '+(k<3?c.name+' · ':'')+ownedCount(k)+'/8</button>').join('')+'</div>'+
+    (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 미리보기 사진은 확정된 최종 카드가 아니야.</p>':'');
  }
  function renderPanel(which=selectedPanel){
   if(!which)return;
@@ -133,6 +172,7 @@
   e.preventDefault();const action=b.dataset.homeAction||b.dataset.do;
   if(action.startsWith('buy-')){buy(action.slice(4));refreshStats();renderPanel('shop');return}
   if(action==='album'){albumIndex=0;albumView='roster';openPanel('album');return}
+  if(action==='toggle-preview'){showPreview=!showPreview;renderPanel('album');return;}
   if(action==='collection-next'||action==='collection-prev'){albumIndex=(albumIndex+(action==='collection-next'?1:7))%8;albumView='roster';renderPanel('album');return}
   if(action.startsWith('collection-person-')){albumIndex=Math.max(0,Math.min(7,Number(action.slice(18))||0));albumView='roster';renderPanel('album');return}
   if(action==='collection-detail'){albumView='detail';renderPanel('album');return}
