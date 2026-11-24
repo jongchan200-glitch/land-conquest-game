@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>와구와구 · WAGU WAGU</title>
-<!-- v0.2.22: Wagjak forest HUD, localization, camera and gameover -->
+<!-- v0.2.24: Wagu Wagu coin rewards, map treasure markers, 80% unlock, giant predators -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -440,7 +440,7 @@ function ensureCoinPickups(){
  if(Array.isArray(state.coinPickups)){
   const used=new Set();
   state.coinPickups=state.coinPickups.filter(p=>{
-   if(!p||!Number.isInteger(p.id)||p.id<0||p.id>=world.length||used.has(p.id)||world[p.id]!==FREE)return false;
+   if(!p||!Number.isInteger(p.id)||p.id<0||p.id>=world.length||used.has(p.id)||(world[p.id]!==FREE&&world[p.id]!==CUT))return false;
    used.add(p.id);return true;
   });
   return;
@@ -1884,7 +1884,7 @@ init();
 })();
 
 </script>
-<script src="./ww-ui.js?v=040"></script><script src="./home3d.js?v=039"></script>
-<script src="./home.js?v=040"></script>
+<script src="./ww-ui.js?v=041"></script><script src="./home3d.js?v=039"></script>
+<script src="./home.js?v=041"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body></html>
