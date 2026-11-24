@@ -56,7 +56,7 @@
  <div class="lab-choice lab-zone-choice" id="labZoneButtons">
  <button type="button" data-lab-zone="1">1구역</button><button type="button" data-lab-zone="2">2구역</button><button type="button" data-lab-zone="3">3구역</button><button type="button" data-lab-zone="4">4구역</button><button type="button" data-lab-zone="5">5구역</button><button type="button" data-lab-zone="6">6구역</button>
  </div>
- <p class="lab-hint">조이스틱으로 직접 움직여 보세요 · 5~6구역은 능력 미리보기</p>
+ <p class="lab-hint">조이스틱으로 맵 탐험 · 장애물 회피 · 5~6구역 특수 공격 연습</p>
 </div>
 <canvas id="mini" width="136" height="192"></canvas>
 <div id="controls"><div id="joy" aria-label="가상 조이스틱" role="application"><div class="joyrim"></div><div class="joywell"></div><div class="joystickKnob" id="knob"></div></div><button id="act" aria-label="액션 버튼"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><path d="M30 7L36 24 53 30 36 36 30 53 24 36 7 30 24 24Z" fill="#fff2cb" stroke="#fff6da" stroke-width="2"/><circle cx="30" cy="30" r="5" fill="#c27c42"/></svg></button></div><div id="bottomStrip">조이스틱 이동 · 버튼 한 번 = 한 입 앙! · 길게 누르면 연속 갉아먹기</div>
@@ -116,8 +116,9 @@ const HABITATS=[
 ];
 // Independent six-room test arena; runtime-only, never written to adventure saves.
 let testMode=false,labZone=1,webSlow=0;
-const LAB_ARENAS=[30,99,168,237,306,375].map((y,i)=>({
- x0:132,x1:175,y0:y,y1:y+34,name:HABITATS[i].name,zone:i+1
+// Each laboratory region is a genuine 64×56-tile walkable practice map.
+const LAB_ARENAS=[12,80,148,216,284,352].map((y,i)=>({
+ x0:120,x1:184,y0:y,y1:y+56,name:HABITATS[i].name,zone:i+1
 }));
 const LAB_EVOLUTIONS=[1,11,21,31,41];
 const zoneOf=(x,y)=>{
@@ -198,7 +199,7 @@ const markSlabDirty=()=>{slabDirty=true};
 let state,world,player,trail=[],enemy=[],chunks=[],particles=[],floatTexts=[],controls={x:0,y:0},held=false,pressed={},playStarted=false,modal='intro',modalTab='intro',miniOn=false;
 let clock=0,acc=0,lastFrame=0,cam={x:90,y:600,scale:1.15},screenW=390,screenH=844,dpr=1,digest=0,chewEffect=0,fallTimer=0,fallPieces=[],captureAfterFall=0,blink=0,toastTimer=0,saveAcc=0,autoPath=[],autoOn=false,levelMoment=0,walkPhase=0,trailBase=0,transientFinish=false,fxSound=null;
 let pendingCoinPath=[],coinFlights=[];
-let labAttackMessage=0;
+let labAttackMessage=0,labHitCooldown=0;
 let lastPlayerSnapshot=null;
 // Continuous analog steering is separate from the unchanged tile/territory simulation.
 // x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
@@ -550,7 +551,42 @@ function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn||!!tap
 function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;const r=Math.hypot(x,y);if(r<.23)return null;return [x/r,y/r]}
 // The original four-direction restriction lived above. The physical thumbstick now
 // retains all 360 degrees, including intermediate slopes and diagonal turns.
+// Test-only movement never modifies CUT/OWN/FALL map state or saved adventure.
+function labObstacle(x,y,b=LAB_ARENAS[labZone-1]){
+ if(!b)return false;
+ // A few bushes/rocks are genuine collision obstacles; the central spawn and
+ // the routes toward each monster remain open.
+ const dots=[[-20,-15],[-17,12],[20,-12],[18,15],[0,-19],[-2,19]];
+ const cx=(b.x0+b.x1)*.5,cy=(b.y0+b.y1)*.5;
+ return dots.some(([dx,dy],i)=>Math.hypot(x-(cx+dx),y-(cy+dy))<1.7+(i%2)*.3);
+}
+function moveTestAnalog(dir,dt){
+ if(!testMode||modal||!playStarted)return false;
+ const mag=Math.hypot(dir[0],dir[1]);if(mag<.1)return false;
+ const dx=dir[0]/mag,dy=dir[1]/mag;
+ if(!Number.isFinite(player.wx)||!Number.isFinite(player.wy))analogCenter();
+ const angle=Math.atan2(dy,dx);
+ const prev=Number.isFinite(player.turnAngle)?player.turnAngle:angle;
+ player.turnAngle=prev+clamp(Math.atan2(Math.sin(angle-prev),Math.cos(angle-prev)),-dt*12,dt*12);
+ player.dirX=Math.cos(player.turnAngle);player.dirY=Math.sin(player.turnAngle);
+ const b=LAB_ARENAS[labZone-1],speed=(webSlow>0?4.2:8.2);
+ const jump=Math.min(.23,dt*speed);
+ const fit=(x,y)=>x>b.x0+1.2&&x<b.x1-1.2&&y>b.y0+1.2&&y<b.y1-1.2&&!labObstacle(x,y,b);
+ let nx=player.wx,ny=player.wy;
+ // Sliding along rocks/arena walls feels like a real walkable game map.
+ if(fit(nx+dx*jump,ny))nx+=dx*jump;
+ if(fit(nx,ny+dy*jump))ny+=dy*jump;
+ const moved=Math.hypot(nx-player.wx,ny-player.wy)>.0001;
+ if(!moved)return false;
+ player.wx=nx;player.wy=ny;player.x=Math.floor(nx);player.y=Math.floor(ny);
+ player.analog=true;player.phase=(player.phase+dt*speed*.95)%1;
+ player.walkCycle=(player.walkCycle||0)+dt*speed*.75;
+ lastMoveClock=clock;
+ window.wwSfx?.('crawl');
+ return true;
+}
 function moveAnalog(dir,dt){
+  if(testMode)return moveTestAnalog(dir,dt);
   if(modal||!playStarted||digest>0||recoil||fallPieces.length||state.hearts<=0||autoOn)return false;
   const v=Math.hypot(dir[0],dir[1]);if(v<.01)return false;
   const ux=dir[0]/v,uy=dir[1]/v;
@@ -798,7 +834,7 @@ function enemyUpdate(dt){for(const e of enemy){
  const eyeContact=gaze.dist<sight&&gaze.dist>radius*.72;
  e.alert=eyeContact;
  const charging=testMode&&e.type==='beetle'&&e.chargeTime>0;
- const speed=charging?1.8:(eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:e.type==='flutter'?.86:.70));
+ const speed=testMode?(charging?6.4:(eyeContact?2.5:(e.type==='hunter'?2.15:1.55))):(eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:e.type==='flutter'?.86:.70));
  e.turn=(e.turn||0)+dt;
  let dx=e.dx,dy=e.dy;
  if(charging){dx=e.chargeDx||gaze.dx;dy=e.chargeDy||gaze.dy;}
@@ -814,11 +850,19 @@ function enemyUpdate(dt){for(const e of enemy){
  const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;
  const nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;
  const i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));
- if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL||!monsterCanOccupy(e,nx,ny)){
+ if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL||(testMode&&labObstacle(nx,ny))||!monsterCanOccupy(e,nx,ny)){
    e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;
    continue;
  }
  e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;
+}
+if(testMode){
+ labHitCooldown=Math.max(0,labHitCooldown-dt);
+ if(labHitCooldown<=0){
+  const touching=enemy.some(e=>e.zone===labZone&&Math.hypot(e.x-player.wx,e.y-player.wy)<monsterHitRadius(e)+.7);
+  if(touching){labHitCooldown=2;blink=.45;toast('몬스터 접촉! 연습장이라 목숨은 줄지 않아',1.3);pulse(32);}
+ }
+ return;
 }
 if(trail.length){for(const e of enemy){if(e.zone>state.unlockedZone)continue;
   // The monster's actual shell, rather than only its centre point, is dangerous.
@@ -1626,7 +1670,8 @@ function loop(t){
 }
 function testArenaZoom(){
  const radius=Math.max(0,...enemy.filter(e=>e.zone===labZone).map(monsterRadius));
- return Math.min([.80,.75,.72,.66,.60,.54][labZone-1],Math.max(.24,(screenW-24)/(18*T+radius*2.25)));
+ // A closer follow-camera shows the character moving across the larger map.
+ return Math.max(.38,Math.min(.78,(screenW-24)/(27*T+radius*.95)));
 }
 function redrawTestArena(resetCanvas=false){
  if(!testMode)return;
@@ -1687,7 +1732,7 @@ function switchTestZone(zone){
  tapGrace=null;tapFollow=null;biteCharge=0;biteTarget=-1;
  for(const e of enemy){e.webWarn=null;e.webCloud=null;e.chargeWindup=0;e.chargeTime=0;}
  refreshTestArenaHud();updateHUD();
- toast(zone+'구역 · '+b.name+' | 진화 단계는 위에서 변경',2.2);redrawTestArena();
+ toast(zone+'구역 · '+b.name+' | 조이스틱으로 몬스터 사이를 돌아다녀 봐!',2.2);redrawTestArena();
 }
 function startTestArena(){
  if(testMode)return;
@@ -1700,12 +1745,13 @@ function startTestArena(){
  state={...defaultState(),level:1,unlockedZone:6,coinPickups:[],spawnedZones:[1,2,3,4,5,6]};
  world=new Uint8Array(CW*CH);world.fill(FALL);
  for(const b of LAB_ARENAS)for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++)world[at(x,y)]=CUT;
+ labHitCooldown=0;
  enemy=[];trail=[];fallPieces=[];pendingCoinPath=[];coinFlights=[];
  particles=[];floatTexts=[];biteMarks=[];zoneTransition=null;completionReveal=null;
  manualCameraZoom=null;transientFinish=false;autoOn=false;autoPath=[];saveAcc=0;
  for(let z=1;z<=6;z++){
   const b=LAB_ARENAS[z-1],cx=(b.x0+b.x1)*.5,cy=(b.y0+b.y1)*.5;
-  const offsets=[[-9,-7],[9,-7],[-9,8],[9,8],[0,-11],[0,11]];
+  const offsets=[[-16,-13],[16,-13],[-16,14],[16,14],[0,-21],[0,21]];
   LAB_TYPES[z-1].forEach((type,i)=>{
    const [ox,oy]=offsets[i],x=cx+ox,y=cy+oy;
    enemy.push({zone:z,type,x,y,dx:i%2?-.18:.18,dy:.30,
@@ -1713,7 +1759,7 @@ function startTestArena(){
     chargeCooldown:2+i,webCooldown:3+i*.3});
   });
   // In later zones, a surviving small meadow monster remains beside giants.
-  if(z>=5)enemy.push({zone:z,originZone:1,type:'bouncer',x:cx-3,y:cy+11,
+  if(z>=5)enemy.push({zone:z,originZone:1,type:'bouncer',x:cx-4,y:cy+21,
    dx:.08,dy:-.21,seed:90+z,sizeScale:.95,turn:0});
  }
  document.getElementById('landHome').hidden=true;
@@ -1745,7 +1791,7 @@ $('labControls').addEventListener('click',e=>{
 function demo(){if(capture()>18||state.level>1){toast('저장 중인 장기 맵 보호: 자동 시연은 새 맵에서만 가능해.',2.2);return}for(const e of enemy){if(e.type!=='nest'){e.x=Math.max(26,e.x);e.y=Math.min(44,e.y+4)}}autoOn=true;autoPath=[];for(let i=0;i<13;i++)autoPath.push([1,0]);for(let i=0;i<10;i++)autoPath.push([0,-1]);for(let i=0;i<13;i++)autoPath.push([-1,0]);closePanel();toast('자동 시연: 길을 씹어 내 영역과 연결!',2)}
 function closePanel(){if(state.hearts<=0){showPanel('gameover');return}modal=null;$('overlay').classList.remove('open');playStarted=true;lastFrame=performance.now();window.wwBgm?.play()}
 function showPanel(type){modal=type;playStarted=false;held=false;tapGrace=null;tapFollow=null;$('act').classList.remove('held');$('overlay').classList.add('open');let html='';
-if(type==='intro'){const resumable=!!state.lastManualSaveAt||!!state.tiles||!!state.album&&Object.keys(state.album).length||capture()>15;html=`<div class="eyebrow">WAGU WAGU · V0.2.26</div><h2>갉아먹고, 연결하면<br><span style="color:#f4d298">한 조각이 내 땅!</span></h2><p>화면 전체가 게임 세계야. <b>왼손 조이스틱</b>으로 이동하고, <b>오른손 버튼</b>을 누른 채 미점령 판을 갉아먹어. 자기 땅에서는 그냥 이동할 수 있어.</p><p>먹다가 볼이 차면 <b>꿀꺽!</b> 움직이지 못해. 몬스터가 절단선을 건드리지 못하게 조심해!</p><div class="buttons"><button class="cta" data-do="play">${resumable?'이어서 플레이':'게임 시작'}</button><button class="quiet" data-do="demo">▶ 자동 시연</button><button class="quiet" data-do="lab">🧪 몬스터·진화 테스트장</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><p class="notice">🪙 10칸 이상 떨어뜨리면 코인 보상! 황금 코인이 있는 영역을 점령하면 코인 +10. 위쪽 코인 표시를 누르면 보상표를 볼 수 있어.</p><p class="muted">구역 80% 점령 시 다음 구역 개방 · 6개의 점령 구역 · 카드 사진 그대로 · 자동 저장</p>`}
+if(type==='intro'){const resumable=!!state.lastManualSaveAt||!!state.tiles||!!state.album&&Object.keys(state.album).length||capture()>15;html=`<div class="eyebrow">WAGU WAGU · V0.2.27</div><h2>갉아먹고, 연결하면<br><span style="color:#f4d298">한 조각이 내 땅!</span></h2><p>화면 전체가 게임 세계야. <b>왼손 조이스틱</b>으로 이동하고, <b>오른손 버튼</b>을 누른 채 미점령 판을 갉아먹어. 자기 땅에서는 그냥 이동할 수 있어.</p><p>먹다가 볼이 차면 <b>꿀꺽!</b> 움직이지 못해. 몬스터가 절단선을 건드리지 못하게 조심해!</p><div class="buttons"><button class="cta" data-do="play">${resumable?'이어서 플레이':'게임 시작'}</button><button class="quiet" data-do="demo">▶ 자동 시연</button><button class="quiet" data-do="lab">🧪 몬스터·진화 테스트장</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><p class="notice">🪙 10칸 이상 떨어뜨리면 코인 보상! 황금 코인이 있는 영역을 점령하면 코인 +10. 위쪽 코인 표시를 누르면 보상표를 볼 수 있어.</p><p class="muted">구역 80% 점령 시 다음 구역 개방 · 6개의 점령 구역 · 카드 사진 그대로 · 자동 저장</p>`}
 else if(type==="menu"){html=`<div class="eyebrow">WAGU · STAGE ${state.stage}</div><h2>일시정지</h2><p>Lv.${state.level} · ${capture().toFixed(1)}% · ♥${state.hearts}</p><div class="buttons"><button class="cta" data-do="play">계속 플레이</button><button class="quiet" data-do="saveexit">${testMode?"연습 종료 · 원래 게임으로":"저장하고 홈으로"}</button></div><p class="muted">${testMode?"테스트장의 변경은 저장되지 않아.":"상점·컬렉션·설정은 홈에서 이용할 수 있어."}</p>`}
 else if(type==='shop'){html=`<div class="eyebrow">COIN SHOP · DEMO ECONOMY</div><h2>코인 상점</h2><p>보유 코인 <strong style="color:#f3d28d">${state.coins}</strong> · 구매한 강화는 저장돼.</p>${shopTile('capacity','포만 용량 +3','한 번에 더 많은 땅을 갉아먹어','⚗')}${shopTile('speed','씹는 속도 향상','미점령 지형을 더 빠르게 전진해','↗')}${shopTile('digest','소화 시간 감소','꿀꺽 때문에 멈춰 있는 시간을 줄여','◷')}${shopTile('biteArea','먹는 면적 강화','한 번에 더 넓게 갉아먹기','◈')}${shopTile('moveSpeed','이동 속도 강화','내 영역 이동 속도 상승','➤')}<p class="notice">광고 시청 보상과 실제 결제는 연동되지 않은 기획 단계야. 테스트 상점에는 실제 돈이나 광고가 없어.</p><div class="buttons"><button class="cta" data-do="menu">← 뒤로</button><button class="quiet" data-do="play">계속 플레이</button></div>`}
 else if(type==='album'){html=`<div class="eyebrow">CARD COLLECTION · LOCAL ALBUM</div><h2>캐릭터 수납장</h2><p>스테이지 완료 후 사진 전체와 카드가 공개돼. 진행 중에는 등급/프레임을 알 수 없어.</p><div class="tabs"><button class="${modalTab!=='anika'?'active':''}" data-do="tab-haena">유해나</button><button class="${modalTab==='anika'?'active':''}" data-do="tab-anika">아니카</button></div>${albumHTML(modalTab==='anika'?1:0)}<p class="muted">현재 원본 사진은 각 캐릭터 대표 사진 1장씩만 적용. 나머지 카드별 화보는 아직 제작 중이며 획득한 것으로 표시하지 않아.</p><div class="buttons"><button class="cta" data-do="menu">← 뒤로</button><button class="quiet" data-do="play">계속 플레이</button></div>`}
