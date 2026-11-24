@@ -541,7 +541,7 @@ function paintCoinFlights(){
  ctx.restore();
 }
 function getImage(){const ci=Math.floor((state.stage-1)/8),number=(state.stage-1)%8+1;photo.src=(number===1&&characters[ci]?.image)||'';softPhotoReady=false}
-function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}pendingCoinPath=[];coinFlights=[];getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();if(new URLSearchParams(location.search).has('lab'))setTimeout(startTestArena,0);}
+function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}pendingCoinPath=[];coinFlights=[];getImage();photo.onload=()=>{};updateHUD();showPanel('intro');scheduleFrame();window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();if(new URLSearchParams(location.search).has('lab'))setTimeout(startTestArena,0);}
 function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.add('show');toastTimer=seconds}
 function tickSound(freq=300,dur=.075,vol=.016){try{if(Number(window.wwPrefs?.sfx??70)<=0)return;if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol*(window.wwPrefs?.sfx??70)/100,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
@@ -906,7 +906,7 @@ function endPinch(ev){
 for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,endPinch);
 function cameraUpdate(dt){
  if(testMode){
-  const pos=mapPosition(),goalZoom=[.80,.75,.72,.66,.60,.54][labZone-1];
+  const pos=mapPosition(),goalZoom=testArenaZoom();
   cam.scale+=(goalZoom-cam.scale)*Math.min(1,dt*6);
   cam.x+=(pos.x-cam.x)*Math.min(1,dt*6);
   cam.y+=(pos.y-cam.y)*Math.min(1,dt*6);
@@ -993,7 +993,7 @@ function paintTestArenaFloor(){
  ctx.save();
  ctx.fillStyle='#0d1e26';ctx.fillRect(0,0,WIDTH,HEIGHT);
  const colors=[['#609e5b','#31714e'],['#d7a862','#a7773c'],['#72aca2','#36676b'],['#9c7499','#5d4a79'],['#987962','#65413b'],['#585b8d','#303a5c']];
- for(const b of LAB_ARENAS){
+ for(const b of [LAB_ARENAS[labZone-1]]){
   const [c,d]=colors[b.zone-1],x=b.x0*T,y=b.y0*T,w=(b.x1-b.x0)*T,h=(b.y1-b.y0)*T;
   const g=ctx.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,c);g.addColorStop(1,d);
   ctx.shadowColor='#000b';ctx.shadowBlur=30;ctx.fillStyle=g;ctx.fillRect(x,y,w,h);ctx.shadowBlur=0;
@@ -1201,8 +1201,8 @@ function paintZoneCinematic(){
  ctx.restore();
 }
 function paintMonsters(){
-   for(const e of enemy){if(e.zone>state.unlockedZone)continue;
-    let x=e.x*T,y=e.y*T;const w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
+   for(const e of enemy){if(e.zone>state.unlockedZone||(testMode&&e.zone!==labZone))continue;
+     let x=e.x*T,y=e.y*T;const w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
     if(testMode&&e.type==='beetle'&&e.chargeWindup>0)x+=Math.sin(clock*62)*w*.048;
     if(testMode&&e.type==='spider'){paintTestSpider(e,x,y,w);continue;}
     const colors={hunter:['#e79c76','#98584a'],wander:['#ceace2','#856ba4'],
@@ -1563,7 +1563,29 @@ let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.
  minictx.strokeStyle='#ffdb8e';minictx.lineWidth=2;
  minictx.strokeRect(r.x0*iw,r.y0*ih,(r.x1-r.x0)*iw,(r.y1-r.y0)*ih);
 }
-function loop(t){if(!lastFrame)lastFrame=t;const dt=Math.min(.055,(t-lastFrame)/1000);lastFrame=t;advance(dt);cameraUpdate(dt);render();drawMini();requestAnimationFrame(loop)}
+// Recover a stopped frame loop when entering the test arena.
+let frameQueued=false;
+function scheduleFrame(){
+ if(frameQueued)return;
+ frameQueued=true;
+ requestAnimationFrame(t=>{frameQueued=false;loop(t);});
+}
+function loop(t){
+ if(!lastFrame)lastFrame=t;
+ const dt=clamp((t-lastFrame)/1000,0,.055);lastFrame=t;
+ advance(dt);cameraUpdate(dt);render();drawMini();scheduleFrame();
+}
+function testArenaZoom(){
+ const radius=Math.max(0,...enemy.filter(e=>e.zone===labZone).map(monsterRadius));
+ return Math.min([.80,.75,.72,.66,.60,.54][labZone-1],Math.max(.24,(screenW-24)/(18*T+radius*2.25)));
+}
+function redrawTestArena(resetCanvas=false){
+ if(!testMode)return;
+ if(resetCanvas)resize();
+ lastFrame=0;
+ try{render();}catch(err){console.error('Test arena render failed',err);}
+ scheduleFrame();
+}
 function resize(){screenW=canvas.clientWidth||innerWidth;screenH=canvas.clientHeight||innerHeight;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(screenW*dpr);canvas.height=Math.round(screenH*dpr)}
 // One tap switches zones or evolution stages without playing hours of progress.
 // Real save data is NEVER read back from or written to these temporary objects.
@@ -1593,7 +1615,7 @@ function setTestEvolution(step){
  if(step<1||step>5)return;
  state.level=LAB_EVOLUTIONS[step-1];state.xp=0;
  state.fullness=0;digest=0;resetBody();gutBoluses=[];gasPuffs=[];
- levelMoment=.65;refreshTestArenaHud();updateHUD();
+ levelMoment=.65;refreshTestArenaHud();updateHUD();redrawTestArena();
  toast('진화 '+step+'단계 · Lv.'+state.level+' · 직접 움직여 봐!',2);
 }
 function switchTestZone(zone){
@@ -1602,14 +1624,14 @@ function switchTestZone(zone){
  labZone=zone;const b=LAB_ARENAS[zone-1];
  const x=Math.floor((b.x0+b.x1)*.5),y=Math.floor((b.y0+b.y1)*.5);
  player={x,y,ox:x,oy:y,dirX:1,dirY:0,phase:1,moveDuration:.26};
- analogCenter();cam.x=player.wx*T;cam.y=player.wy*T;cam.scale=[.80,.75,.72,.66,.60,.54][labZone-1];
+ analogCenter();cam.x=player.wx*T;cam.y=player.wy*T;cam.scale=testArenaZoom();
  trail=[];resetBody();digest=0;webSlow=0;gutBoluses=[];gasPuffs=[];
  autoOn=false;autoPath=[];held=false;controls={x:0,y:0};
  pressed={};state.hearts=3;state.fullness=0;
  tapGrace=null;tapFollow=null;biteCharge=0;biteTarget=-1;
  for(const e of enemy){e.webWarn=null;e.webCloud=null;e.chargeWindup=0;e.chargeTime=0;}
  refreshTestArenaHud();updateHUD();
- toast(zone+'구역 · '+b.name+' | 진화 단계는 위에서 변경',2.2);
+ toast(zone+'구역 · '+b.name+' | 진화 단계는 위에서 변경',2.2);redrawTestArena();
 }
 function startTestArena(){
  if(testMode)return;
@@ -1645,7 +1667,7 @@ function startTestArena(){
  document.body.classList.add('ww-lab-mode');$('labControls').hidden=false;
  miniOn=false;mini.classList.remove('visible');
  switchTestZone(1);setTestEvolution(1);
- markSlabDirty();lastFrame=performance.now();
+ markSlabDirty();redrawTestArena(true);
  window.wwBgm?.play();
 }
 function exitTestArena(){
