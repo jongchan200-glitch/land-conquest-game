@@ -113,3 +113,38 @@
 .ww-home-coin-rules p{margin:8px 0;font-size:12px;line-height:1.6}
 .ww-home-coin-rules small{font-size:11px;color:#e0ceaf}
 @media(max-width:350px){.ww-coin-rules>div{font-size:10px;padding:8px 5px}.ww-coin-rules>div strong{font-size:14px}}
+
+/* Wagu Wagu QA monster arena, isolated from all player saves. */
+body.ww-lab-mode #wwHud{display:none!important}
+body.ww-lab-mode #tip{top:calc(env(safe-area-inset-top) + 186px)!important;z-index:13}
+#labControls[hidden]{display:none!important}
+#labControls{position:absolute;z-index:12;top:calc(env(safe-area-inset-top) + 5px);
+ left:max(6px,env(safe-area-inset-left));right:max(6px,env(safe-area-inset-right));
+ padding:8px 10px 9px;display:flex;flex-direction:column;gap:4px;
+ border:2px solid #e0b67a;border-radius:15px;
+ background:linear-gradient(155deg,#332f26f5,#153934f5);
+ box-shadow:0 6px 22px #0009,inset 0 1px 2px #f1d4a271;
+ color:#fff2d5;touch-action:manipulation;user-select:none}
+.lab-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:900}
+.lab-heading span small{font-size:9px;color:#c4dbb8;margin-left:4px;font-weight:600}
+.lab-heading button{border:1px solid #dfbd84;border-radius:8px;background:#765337;color:#fff3de;
+ padding:5px 9px;font-size:11px;font-weight:900;touch-action:manipulation}
+.lab-label{display:flex;align-items:center;justify-content:space-between;margin-top:3px;
+ color:#d4e5cb;font-size:10px;font-weight:800}
+.lab-label strong{font-size:10px;color:#ffe0a1}
+.lab-choice{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.lab-choice.lab-zone-choice{grid-template-columns:repeat(6,minmax(0,1fr))}
+.lab-choice button{min-width:0;min-height:33px;border-radius:8px;border:1px solid #8caa8b;
+ background:linear-gradient(#577669,#344d47);color:#f7f3df;font-size:11px;
+ font-weight:900;padding:4px 1px;touch-action:manipulation}
+.lab-choice button.active{background:linear-gradient(#ffdf93,#d5a454);color:#4f301e;
+ border-color:#fff2c6;box-shadow:0 0 0 1px #ffd87a,inset 0 1px #fff2ce}
+.lab-choice button:active{transform:translateY(1px)}
+.lab-hint{text-align:center;margin:3px 0 0;color:#cde6c3;font-size:9px;line-height:1.3}
+.ww-lab-entry{border-color:#d8b776!important;background:linear-gradient(120deg,#475b40,#29413f)!important}
+.ww-lab-entry .home-action{margin-top:10px;min-height:43px;border-color:#e6c58a!important}
+@media(max-width:370px){#labControls{padding:7px 7px 8px;gap:3px}.lab-choice{gap:3px}
+.lab-choice button{font-size:10px;min-height:30px}.lab-label{font-size:9px}.lab-hint{font-size:8px}}
+@media(max-height:690px){#labControls{padding-top:5px;padding-bottom:5px;gap:2px}
+.lab-choice button{min-height:28px}.lab-hint{display:none}
+body.ww-lab-mode #tip{top:calc(env(safe-area-inset-top) + 158px)!important}}
