@@ -40,7 +40,7 @@
 @keyframes rewardBloom{from{opacity:0;transform:scale(.6) rotateY(-50deg)}60%{opacity:1}to{opacity:1;transform:scale(1) rotateY(0)}}
 @keyframes rewardIntoAlbum{0%{opacity:1;transform:scale(1)}75%{opacity:1;transform:translate(0,-80px) scale(.25) rotate(15deg)}100%{opacity:0;transform:translate(45px,-230px) scale(.06)}}
 </style>
-<link rel="stylesheet" href="./home.css?v=039"><link rel="stylesheet" href="./ww-theme.css?v=041">
+<link rel="stylesheet" href="./home.css?v=039"><link rel="stylesheet" href="./ww-theme.css?v=042">
 </head>
 <body><main id="app"><canvas id="scene" aria-label="와구와구 게임 세계"></canvas><div id="vignette"></div>
 <div id="top"><div id="progress" class="glass"><div class="progressTop"><span id="stageTitle">STAGE 01 · LAND</span><b id="capturePct">0%</b></div><div class="progressRail"><div id="progressFill"></div></div></div><div id="stats"><div class="stat glass"><small>Lv</small><strong id="lv">1</strong></div><div class="stat glass"><small>코인</small><strong id="coins">0</strong></div><div class="stat glass"><small>♥</small><strong id="hearts">3</strong></div></div><button id="menuBtn" class="iconbtn glass" aria-label="메뉴 열기">☰</button></div><button id="saveBtn" class="glass" type="button" aria-label="현재 위치 저장하고 홈으로">▣ 저장·종료</button>
@@ -566,7 +566,7 @@ function moveAnalog(dir,dt){
   // Outside: creep through each edible cell instead of sprinting to its edge
   // and visibly freezing for most of a second. Total time per cell stays slow.
   const walkBase=from===OWN?3.25+Math.min(2.5,(state.level-1)*.028+(state.upgrades.moveSpeed||0)*.48):Math.min(4.5,1.22+(state.level-1)*.055+(state.upgrades.speed||0)*.12);
-  const speed=walkBase*(testMode&&webSlow>0?.55:1);
+  const speed=(testMode?Math.max(3.8,walkBase):walkBase)*(testMode&&webSlow>0?.55:1);
   const stride=Math.min(.12,dt*speed);
   let nx=clamp(player.wx+ux*stride,.006,CW-.006),ny=clamp(player.wy+uy*stride,.006,CH-.006);
   const tx=Math.floor(nx),ty=Math.floor(ny);
@@ -1613,6 +1613,10 @@ function switchTestZone(zone){
 }
 function startTestArena(){
  if(testMode)return;
+ // Snapshot the last real frame before switching memory-only worlds.
+ if(!window.__homeIsOpen&&!save()){
+  toast('실제 게임 기록 저장에 실패했어. 테스트를 시작하지 않았어.',2.5);return;
+ }
  testMode=true;labZone=1;webSlow=0;
  // Never call newWorld() or save() from the laboratory.
  state={...defaultState(),level:1,unlockedZone:6,coinPickups:[],spawnedZones:[1,2,3,4,5,6]};
@@ -1662,8 +1666,8 @@ $('labControls').addEventListener('click',e=>{
 function demo(){if(capture()>18||state.level>1){toast('저장 중인 장기 맵 보호: 자동 시연은 새 맵에서만 가능해.',2.2);return}for(const e of enemy){if(e.type!=='nest'){e.x=Math.max(26,e.x);e.y=Math.min(44,e.y+4)}}autoOn=true;autoPath=[];for(let i=0;i<13;i++)autoPath.push([1,0]);for(let i=0;i<10;i++)autoPath.push([0,-1]);for(let i=0;i<13;i++)autoPath.push([-1,0]);closePanel();toast('자동 시연: 길을 씹어 내 영역과 연결!',2)}
 function closePanel(){if(state.hearts<=0){showPanel('gameover');return}modal=null;$('overlay').classList.remove('open');playStarted=true;lastFrame=performance.now();window.wwBgm?.play()}
 function showPanel(type){modal=type;playStarted=false;held=false;tapGrace=null;tapFollow=null;$('act').classList.remove('held');$('overlay').classList.add('open');let html='';
-if(type==='intro'){const resumable=!!state.lastManualSaveAt||!!state.tiles||!!state.album&&Object.keys(state.album).length||capture()>15;html=`<div class="eyebrow">WAGU WAGU · V0.2.24</div><h2>갉아먹고, 연결하면<br><span style="color:#f4d298">한 조각이 내 땅!</span></h2><p>화면 전체가 게임 세계야. <b>왼손 조이스틱</b>으로 이동하고, <b>오른손 버튼</b>을 누른 채 미점령 판을 갉아먹어. 자기 땅에서는 그냥 이동할 수 있어.</p><p>먹다가 볼이 차면 <b>꿀꺽!</b> 움직이지 못해. 몬스터가 절단선을 건드리지 못하게 조심해!</p><div class="buttons"><button class="cta" data-do="play">${resumable?'이어서 플레이':'게임 시작'}</button><button class="quiet" data-do="demo">▶ 자동 시연</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><p class="notice">🪙 10칸 이상 떨어뜨리면 코인 보상! 황금 코인이 있는 영역을 점령하면 코인 +10. 위쪽 코인 표시를 누르면 보상표를 볼 수 있어.</p><p class="muted">구역 80% 점령 시 다음 구역 개방 · 6개의 점령 구역 · 카드 사진 그대로 · 자동 저장</p>`}
-else if(type==="menu"){html=`<div class="eyebrow">WAGU · STAGE ${state.stage}</div><h2>일시정지</h2><p>Lv.${state.level} · ${capture().toFixed(1)}% · ♥${state.hearts}</p><div class="buttons"><button class="cta" data-do="play">계속 플레이</button><button class="quiet" data-do="saveexit">저장하고 홈으로</button></div><p class="muted">상점·컬렉션·설정은 홈에서 이용할 수 있어.</p>`}
+if(type==='intro'){const resumable=!!state.lastManualSaveAt||!!state.tiles||!!state.album&&Object.keys(state.album).length||capture()>15;html=`<div class="eyebrow">WAGU WAGU · V0.2.25</div><h2>갉아먹고, 연결하면<br><span style="color:#f4d298">한 조각이 내 땅!</span></h2><p>화면 전체가 게임 세계야. <b>왼손 조이스틱</b>으로 이동하고, <b>오른손 버튼</b>을 누른 채 미점령 판을 갉아먹어. 자기 땅에서는 그냥 이동할 수 있어.</p><p>먹다가 볼이 차면 <b>꿀꺽!</b> 움직이지 못해. 몬스터가 절단선을 건드리지 못하게 조심해!</p><div class="buttons"><button class="cta" data-do="play">${resumable?'이어서 플레이':'게임 시작'}</button><button class="quiet" data-do="demo">▶ 자동 시연</button><button class="quiet" data-do="lab">🧪 몬스터·진화 테스트장</button><button class="quiet" data-do="screen">⛶ 전체 화면</button></div><p class="notice">🪙 10칸 이상 떨어뜨리면 코인 보상! 황금 코인이 있는 영역을 점령하면 코인 +10. 위쪽 코인 표시를 누르면 보상표를 볼 수 있어.</p><p class="muted">구역 80% 점령 시 다음 구역 개방 · 6개의 점령 구역 · 카드 사진 그대로 · 자동 저장</p>`}
+else if(type==="menu"){html=`<div class="eyebrow">WAGU · STAGE ${state.stage}</div><h2>일시정지</h2><p>Lv.${state.level} · ${capture().toFixed(1)}% · ♥${state.hearts}</p><div class="buttons"><button class="cta" data-do="play">계속 플레이</button><button class="quiet" data-do="saveexit">${testMode?"연습 종료 · 원래 게임으로":"저장하고 홈으로"}</button></div><p class="muted">${testMode?"테스트장의 변경은 저장되지 않아.":"상점·컬렉션·설정은 홈에서 이용할 수 있어."}</p>`}
 else if(type==='shop'){html=`<div class="eyebrow">COIN SHOP · DEMO ECONOMY</div><h2>코인 상점</h2><p>보유 코인 <strong style="color:#f3d28d">${state.coins}</strong> · 구매한 강화는 저장돼.</p>${shopTile('capacity','포만 용량 +3','한 번에 더 많은 땅을 갉아먹어','⚗')}${shopTile('speed','씹는 속도 향상','미점령 지형을 더 빠르게 전진해','↗')}${shopTile('digest','소화 시간 감소','꿀꺽 때문에 멈춰 있는 시간을 줄여','◷')}${shopTile('biteArea','먹는 면적 강화','한 번에 더 넓게 갉아먹기','◈')}${shopTile('moveSpeed','이동 속도 강화','내 영역 이동 속도 상승','➤')}<p class="notice">광고 시청 보상과 실제 결제는 연동되지 않은 기획 단계야. 테스트 상점에는 실제 돈이나 광고가 없어.</p><div class="buttons"><button class="cta" data-do="menu">← 뒤로</button><button class="quiet" data-do="play">계속 플레이</button></div>`}
 else if(type==='album'){html=`<div class="eyebrow">CARD COLLECTION · LOCAL ALBUM</div><h2>캐릭터 수납장</h2><p>스테이지 완료 후 사진 전체와 카드가 공개돼. 진행 중에는 등급/프레임을 알 수 없어.</p><div class="tabs"><button class="${modalTab!=='anika'?'active':''}" data-do="tab-haena">유해나</button><button class="${modalTab==='anika'?'active':''}" data-do="tab-anika">아니카</button></div>${albumHTML(modalTab==='anika'?1:0)}<p class="muted">현재 원본 사진은 각 캐릭터 대표 사진 1장씩만 적용. 나머지 카드별 화보는 아직 제작 중이며 획득한 것으로 표시하지 않아.</p><div class="buttons"><button class="cta" data-do="menu">← 뒤로</button><button class="quiet" data-do="play">계속 플레이</button></div>`}
 else if(type==='coinRules'){
@@ -2128,6 +2132,6 @@ init();
 
 </script>
 <script src="./ww-ui.js?v=041"></script><script src="./home3d.js?v=039"></script>
-<script src="./home.js?v=041"></script>
+<script src="./home.js?v=042"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body></html>
