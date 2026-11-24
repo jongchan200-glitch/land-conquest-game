@@ -91,6 +91,8 @@ const translations={
  '탐험 기록':['Adventure Records','Registro','冒険の記録','Registros'],
  '저장하고 홈으로':['Save & Home','Guardar e ir al inicio','保存してホームへ','Salvar e voltar'],
  '위험':['Danger','Peligro','危険','Perigo'],
+ '광고 보고 이어하기 · 준비 중':['Watch Ad to Continue · Coming Soon','Ver anuncio para continuar · Pronto','広告で続ける · 準備中','Assistir anúncio · Em breve'],
+ '상점·컬렉션·설정은 홈에서 이용할 수 있어.':['Shop, collection and settings are available on the home screen.','Tienda, colección y ajustes están en el inicio.','ショップ・コレクション・設定はホームから。','Loja, coleção e configurações ficam na tela inicial.'],
  '입안의 여유':['Bite Capacity','Capacidad de mordida','かじれる量','Capacidade de mordida'],
  '몸 길이':['Body Length','Longitud del cuerpo','体の長さ','Comprimento do corpo']
 };
@@ -142,24 +144,73 @@ function settingsMarkup(){const t=k=>locale()==='ko'?k:translations[k]?.[langInd
 }
 window.wwPrefs=prefs;window.wwLocale=locale;window.wwApplyLanguage=apply;window.wwTranslate=translate;window.wwSetLanguage=setLanguage;window.wwSetVolume=volume;window.wwSettingsMarkup=settingsMarkup;
 window.wwT=(key)=>locale()==='ko'?key:(translations[key]?.[langIndex[locale()]]||key);
-// Sound adapter: MP3 assets are deliberately not faked. Drop in licensed, approved audio later.
-let soundtrack=null,trackIndex=0;
-const tracks=['./assets/bgm/moonlight.mp3','./assets/bgm/turkish-march.mp3','./assets/bgm/vivaldi-winter.mp3','./assets/bgm/pathetique.mp3'];
+// Approved original 4-track ZIP. Stored as one licensed asset to avoid proxy links.
+// Modern Android WebView supports the native deflate-raw stream used by ZIP.
+const archive='./assets/bgm/wagjak-approved-4tracks.zip';
+let soundtrack=null,trackIndex=0,tracks=[],loading=null;
+let shuffled=[],playing=false;
+function read32(d,o){return(d[o]|d[o+1]<<8|d[o+2]<<16|d[o+3]<<24)>>>0}
+function read16(d,o){return d[o]|d[o+1]<<8}
+async function loadBgm(){
+ if(tracks.length)return tracks;
+ if(loading)return loading;
+ loading=(async()=>{
+  if(typeof DecompressionStream!=='function')throw Error('ZIP deflate not supported');
+  const response=await fetch(archive,{cache:'force-cache'});
+  if(!response.ok)throw Error('BGM ZIP HTTP '+response.status);
+  const bytes=new Uint8Array(await response.arrayBuffer()),objects=[];
+  let off=0,guard=0;
+  while(off+30<=bytes.length&&read32(bytes,off)===0x04034b50&&guard++<40){
+   const method=read16(bytes,off+8),packed=read32(bytes,off+18);
+   const nameSize=read16(bytes,off+26),extraSize=read16(bytes,off+28),dataStart=off+30+nameSize+extraSize;
+   if(dataStart+packed>bytes.length)throw Error('BGM ZIP corrupt');
+   const name=new TextDecoder('utf-8').decode(bytes.subarray(off+30,off+30+nameSize));
+   if(/\.mp3$/i.test(name)){
+    let file;
+    if(method===8){
+     const stream=new Blob([bytes.slice(dataStart,dataStart+packed)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+     file=await new Response(stream).blob();
+    }else if(method===0){file=new Blob([bytes.slice(dataStart,dataStart+packed)]);}
+    else throw Error('Unsupported BGM compression '+method);
+    objects.push({name,url:URL.createObjectURL(new Blob([file],{type:'audio/mpeg'}))});
+   }
+   off=dataStart+packed;
+  }
+  objects.sort((a,b)=>a.name.localeCompare(b.name,'ko',{numeric:true}));
+  if(objects.length!==4)throw Error('Expected 4 BGM tracks, received '+objects.length);
+  tracks=objects.map(x=>x.url);return tracks;
+ })().catch(e=>{console.warn('BGM unavailable',e);loading=null;return []});
+ return loading;
+}
+function shuffleOrder(){
+ shuffled=tracks.map((_,i)=>i);
+ for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+}
 const bgm={
- available:false,playing:false,
- setVolume(v){if(soundtrack)soundtrack.volume=Math.max(0,Math.min(1,v/100));},
+ get available(){return tracks.length===4;},
+ get playing(){return playing;},
+ setVolume(v){if(soundtrack)soundtrack.volume=Math.max(0,Math.min(1,v/100));if(prefs.bgm===0)this.pause()},
  async play(){
-   if(!this.available||prefs.bgm<=0)return;
-   try{
-    if(!soundtrack){soundtrack=new Audio();soundtrack.preload='none';soundtrack.addEventListener('ended',()=>{trackIndex=(trackIndex+1)%tracks.length;bgm.next()});}
-    if(!soundtrack.src){trackIndex=Math.floor(Math.random()*tracks.length);soundtrack.src=tracks[trackIndex]}
-    soundtrack.volume=prefs.bgm/100;await soundtrack.play();this.playing=true;
-   }catch(e){this.playing=false;}
+  if(prefs.bgm<=0||window.__homeIsOpen)return;
+  if(!tracks.length){await loadBgm();if(!tracks.length)return;}
+  if(!soundtrack){
+   soundtrack=new Audio();soundtrack.preload='auto';
+   soundtrack.addEventListener('ended',()=>this.next());
+   shuffleOrder();trackIndex=0;soundtrack.src=tracks[shuffled[trackIndex]];
+  }
+  if(!soundtrack.paused){playing=true;return}
+  try{soundtrack.volume=prefs.bgm/100;await soundtrack.play();playing=true}catch(e){playing=false}
  },
- next(){if(!this.available)return;trackIndex=(trackIndex+1)%tracks.length;if(soundtrack){soundtrack.src=tracks[trackIndex];this.play();}},
- pause(){if(soundtrack)soundtrack.pause();this.playing=false;}
+ next(){
+  if(!tracks.length)return;
+  trackIndex++;
+  if(trackIndex>=shuffled.length){shuffleOrder();trackIndex=0;}
+  if(soundtrack){soundtrack.src=tracks[shuffled[trackIndex]];playing=false;this.play();}
+ },
+ pause(){if(soundtrack)soundtrack.pause();playing=false;}
 };
 window.wwBgm=bgm;
+loadBgm(); // Prefetch while on the home screen: audio playback still needs user interaction.
 // HUD: preserve original element IDs and events. Move the existing save button, never duplicate it.
 const app=document.getElementById('app'),saveBtn=document.getElementById('saveBtn');
 if(app&&saveBtn){
