@@ -24,7 +24,7 @@
   document.getElementById('homeCoins').textContent=num(state.coins);
   document.getElementById('homeBest').textContent=best.toFixed(1);
   document.getElementById('homeCaught').textContent=num(state.captures||0);
-  document.getElementById('homePlaySub').textContent=state.tiles||pct>15?'스테이지 '+state.stage+' · 이어서 탐험하기':'첫 번째 크래커 탐험 시작';
+  document.getElementById('homePlaySub').textContent=state.tiles||pct>15?'이어서 탐험':'탐험 시작';window.wwApplyLanguage?.();
  }
  function openHome(){
   if(!state)return;
@@ -35,12 +35,12 @@
   document.getElementById('knob').style.transform='translate(0,0)';
   document.getElementById('overlay').classList.remove('open');
   drawer.hidden=true;selectedPanel='';
-  refreshStats();
+  window.wwBgm?.pause();refreshStats();window.wwRenderCharacterNav?.();window.wwApplyLanguage?.();
   if(window.home3D?.active){window.home3D.setBadge(localStorage.getItem(previewKey)==='1')}
  }
  function leaveHome(){
   drawer.hidden=true;selectedPanel='';home.hidden=true;window.__homeIsOpen=false;
-  closePanel(); // resumes existing game; auto-new-world on zero hearts is old behavior
+  if(state.hearts<=0){showPanel('gameover');}else{closePanel();window.wwBgm?.play();}
   updateHUD();
  }
  function previewBadge(){return localStorage.getItem(previewKey)==='1'}
@@ -97,12 +97,13 @@
    html=`<div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
    <button type="button" class="home-action" data-home-action="fullscreen">⛶ 전체 화면 전환</button>
    <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
-   <div class="info-card"><b>장기 탐험 저장</b><br>5초마다 자동 저장하고 종료·죽음에도 정복한 지역을 지켜줘. 기기/브라우저별 로컬 저장이므로 데이터를 지우면 복원되지 않을 수 있어.<br><button type="button" class="home-action" data-home-action="save-export">↓ 진행 데이터 백업</button><label class="home-action" style="display:inline-block;cursor:pointer">↑ 백업 파일 불러오기<input id="homeSaveImport" type="file" accept=".json,application/json" style="display:none"></label></div>
-   <p class="notice">홈 구성과 메뉴 항목은 지옥낙하 V0.7의 구조를 옮긴 것이고, 게임별 데이터·코인은 서로 별개야.</p>`;
+   <div class="info-card"><b>장기 탐험 저장</b><br>5초마다 자동 저장해. 하트를 모두 잃으면 이번 구역의 점령 진행은 끝나지만, 코인과 수집 카드는 남아. 기기/브라우저별 로컬 저장이므로 데이터를 지우면 복원되지 않을 수 있어.<br><button type="button" class="home-action" data-home-action="save-export">↓ 진행 데이터 백업</button><label class="home-action" style="display:inline-block;cursor:pointer">↑ 백업 파일 불러오기<input id="homeSaveImport" type="file" accept=".json,application/json" style="display:none"></label></div>
+   <p class="notice">와그작 와그작 · 모든 언어에서 하나의 앱으로 즐길 수 있어. 광고 기능은 실제 앱 출시 전 연결 예정.</p>`;
   }else if(which==='album'){
    html=collectionHTML();
   }
-  content.innerHTML=html;
+  if(which==='settings')html=window.wwSettingsMarkup?.()+html;
+  content.innerHTML=html;window.wwTranslate?.(content);
  }
  function closeDrawer(){drawer.hidden=true;selectedPanel=''}
  home.addEventListener('click',e=>{const p=e.target.closest('[data-home-panel]');if(p){e.preventDefault();openPanel(p.dataset.homePanel)}});
@@ -110,6 +111,7 @@
  document.getElementById('homeDrawerClose').addEventListener('click',closeDrawer);
  drawer.addEventListener('click',e=>{if(e.target===drawer)closeDrawer()});
  drawer.addEventListener('change',async e=>{
+  if(e.target.id==='wwLanguage'){window.wwSetLanguage?.(e.target.value);renderPanel('settings');return;}
   if(e.target.id==='homeSaveImport'&&e.target.files?.[0]){
    try{
     const raw=await e.target.files[0].text(),parsed=JSON.parse(raw);
@@ -124,6 +126,7 @@
    try{localStorage.setItem(previewKey,e.target.checked?'1':'0')}catch(err){}
    window.home3D?.setBadge(e.target.checked)
  }});
+ drawer.addEventListener('input',e=>{if(e.target.id==='wwBgmVolume'||e.target.id==='wwSfxVolume'){const kind=e.target.id==='wwBgmVolume'?'bgm':'sfx';window.wwSetVolume?.(kind,e.target.value);const out=document.getElementById(kind==='bgm'?'wwBgmOutput':'wwSfxOutput');if(out)out.textContent=e.target.value;}});
  drawer.addEventListener('click',e=>{
   const b=e.target.closest('[data-home-action],[data-do]');if(!b)return;
   e.preventDefault();const action=b.dataset.homeAction||b.dataset.do;
