@@ -103,7 +103,7 @@
    html=collectionHTML();
   }
   if(which==='settings')html=window.wwSettingsMarkup?.()+html;
-  content.innerHTML=html;window.wwTranslate?.(content);
+  content.innerHTML=html;window.wwTranslate?.(drawer);
  }
  function closeDrawer(){drawer.hidden=true;selectedPanel=''}
  home.addEventListener('click',e=>{const p=e.target.closest('[data-home-panel]');if(p){e.preventDefault();openPanel(p.dataset.homePanel)}});
