@@ -45,7 +45,20 @@
 <body><main id="app"><canvas id="scene" aria-label="와구와구 게임 세계"></canvas><div id="vignette"></div>
 <div id="top"><div id="progress" class="glass"><div class="progressTop"><span id="stageTitle">STAGE 01 · LAND</span><b id="capturePct">0%</b></div><div class="progressRail"><div id="progressFill"></div></div></div><div id="stats"><div class="stat glass"><small>Lv</small><strong id="lv">1</strong></div><div class="stat glass"><small>코인</small><strong id="coins">0</strong></div><div class="stat glass"><small>♥</small><strong id="hearts">3</strong></div></div><button id="menuBtn" class="iconbtn glass" aria-label="메뉴 열기">☰</button></div><button id="saveBtn" class="glass" type="button" aria-label="현재 위치 저장하고 홈으로">▣ 저장·종료</button>
 <div id="mouth" class="glass"><div class="mouthhead"><span id="mouthLabel">입 안의 여유</span><b id="mouthValue">0 / 8</b></div><div id="mouthRail"><div id="mouthFill"></div></div><div class="mouthhead" id="stretchLine"><span>몸 길이</span><b id="stretchValue">0 / 15</b></div><div id="stretchRail"><div id="stretchFill"></div></div></div>
-<div id="tip" role="status"></div><canvas id="mini" width="136" height="192"></canvas>
+<div id="tip" role="status"></div>
+<div id="labControls" hidden role="group" aria-label="진화 및 몬스터 테스트">
+ <div class="lab-heading"><span>🧪 몬스터 테스트장 <small>저장 기록과 별개</small></span><button type="button" data-lab-exit>✕ 종료</button></div>
+ <div class="lab-label">애벌레 진화 단계 <strong id="labEvolutionName">1단계 · Lv.1</strong></div>
+ <div class="lab-choice" id="labEvolutionButtons">
+ <button type="button" data-lab-evolution="1">1단계</button><button type="button" data-lab-evolution="2">2단계</button><button type="button" data-lab-evolution="3">3단계</button><button type="button" data-lab-evolution="4">4단계</button><button type="button" data-lab-evolution="5">5단계</button>
+ </div>
+ <div class="lab-label">몬스터 구역 <strong id="labZoneName">1구역 · 새싹 초원</strong></div>
+ <div class="lab-choice lab-zone-choice" id="labZoneButtons">
+ <button type="button" data-lab-zone="1">1구역</button><button type="button" data-lab-zone="2">2구역</button><button type="button" data-lab-zone="3">3구역</button><button type="button" data-lab-zone="4">4구역</button><button type="button" data-lab-zone="5">5구역</button><button type="button" data-lab-zone="6">6구역</button>
+ </div>
+ <p class="lab-hint">조이스틱으로 직접 움직여 보세요 · 5~6구역은 능력 미리보기</p>
+</div>
+<canvas id="mini" width="136" height="192"></canvas>
 <div id="controls"><div id="joy" aria-label="가상 조이스틱" role="application"><div class="joyrim"></div><div class="joywell"></div><div class="joystickKnob" id="knob"></div></div><button id="act" aria-label="액션 버튼"><svg viewBox="0 0 60 60" fill="none" aria-hidden="true"><path d="M30 7L36 24 53 30 36 36 30 53 24 36 7 30 24 24Z" fill="#fff2cb" stroke="#fff6da" stroke-width="2"/><circle cx="30" cy="30" r="5" fill="#c27c42"/></svg></button></div><div id="bottomStrip">조이스틱 이동 · 버튼 한 번 = 한 입 앙! · 길게 누르면 연속 갉아먹기</div>
 <div id="overlay" class="open"><section class="sheet" id="sheet" aria-live="polite"></section></div><section id="landHome" class="land-lobby" aria-label="와구와구 홈 화면" hidden>
   <div class="home-world"></div><div class="home-ambient"></div><div class="home-vignette"></div>
@@ -148,7 +161,7 @@ const START_X=80,START_Y=216;
 const MONSTER_ZONE_SCALE=[1.55,2.10,2.65,3.15,3.85,4.60];
 const monsterBaseRadius=e=>e.type==='nest'?43:e.type==='beetle'?37:e.type==='spiky'?35:e.type==='shell'?33:31;
 const monsterRadius=e=>{
- const zone=Math.max(0,Math.min(5,(e.zone||1)-1));
+ const zone=Math.max(0,Math.min(5,(e.originZone||e.zone||1)-1));
  const rarity=e.type==='nest'?1.14:e.type==='beetle'?1.08:e.type==='spiky'?1.04:1;
  const ratio=Math.max(zone===0?1.5:MONSTER_ZONE_SCALE[zone]*.90,
    MONSTER_ZONE_SCALE[zone]*(e.sizeScale||1)*rarity);
@@ -902,6 +915,68 @@ function cameraUpdate(dt){
   cam.y+=(targetY-cam.y)*Math.min(1,dt*3.1);
 }
 function visibleRange(){const scale=cam.scale,left=(cam.x-screenW/(2*scale))/T,top=(cam.y-screenH/(2*scale))/T;return {x0:clamp(Math.floor(left)-1,0,CW-1),x1:clamp(Math.ceil(left+screenW/(scale*T))+2,0,CW),y0:clamp(Math.floor(top)-1,0,CH-1),y1:clamp(Math.ceil(top+screenH/(scale*T))+2,0,CH)}}
+function paintTestSpider(e,x,y,w){
+ ctx.save();ctx.translate(x,y+Math.sin(clock*2.3+e.seed)*2);
+ ctx.lineCap='round';ctx.lineJoin='round';
+ for(const side of [-1,1])for(let i=0;i<4;i++){
+  const a=(i-1.5)*.40,wiggle=Math.sin(clock*3+i*1.4+side)*w*.055;
+  ctx.strokeStyle='#493056';ctx.lineWidth=Math.max(3,w*.12);
+  ctx.beginPath();ctx.moveTo(side*w*.32,-w*.08+i*w*.12);
+  ctx.lineTo(side*w*(.85+i*.07),-w*.48+i*w*.28+wiggle);
+  ctx.lineTo(side*w*(1.30+i*.07),-w*.21+i*w*.32+wiggle);ctx.stroke();
+  ctx.strokeStyle='#bd8bd3';ctx.lineWidth=Math.max(1,w*.023);ctx.beginPath();
+  ctx.moveTo(side*w*.82,-w*.46+i*w*.28+wiggle);ctx.lineTo(side*w*(1.26+i*.07),-w*.2+i*w*.32+wiggle);ctx.stroke();
+ }
+ ctx.shadowColor='#100a24';ctx.shadowBlur=w*.18;
+ const belly=ctx.createRadialGradient(-w*.23,-w*.31,w*.04,w*.2,w*.13,w);
+ belly.addColorStop(0,'#f3c9e8');belly.addColorStop(.25,'#ab73bb');belly.addColorStop(1,'#402a60');
+ ctx.fillStyle=belly;ctx.beginPath();ctx.ellipse(0,w*.18,w*.79,w*.72,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#d6a4d5';ctx.beginPath();ctx.arc(0,-w*.31,w*.54,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ ctx.fillStyle='#432951';for(let i=-1;i<=1;i++){ctx.beginPath();ctx.arc(i*w*.32,w*.17,w*.095,0,Math.PI*2);ctx.fill();}
+ for(const q of [-1,1]){
+  ctx.fillStyle='#fff9ed';ctx.beginPath();ctx.ellipse(q*w*.23,-w*.43,w*.20,w*.26,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#392752';ctx.beginPath();ctx.arc(q*w*.21,-w*.38,w*.10,0,Math.PI*2);ctx.fill();
+ }
+ ctx.strokeStyle='#fff2dc';ctx.lineWidth=Math.max(1,w*.035);
+ ctx.beginPath();ctx.arc(0,-w*.17,w*.17,.1,Math.PI-.1);ctx.stroke();
+ ctx.restore();
+}
+function paintTestArenaFloor(){
+ ctx.save();
+ ctx.fillStyle='#0d1e26';ctx.fillRect(0,0,WIDTH,HEIGHT);
+ const colors=[['#609e5b','#31714e'],['#d7a862','#a7773c'],['#72aca2','#36676b'],['#9c7499','#5d4a79'],['#987962','#65413b'],['#585b8d','#303a5c']];
+ for(const b of LAB_ARENAS){
+  const [c,d]=colors[b.zone-1],x=b.x0*T,y=b.y0*T,w=(b.x1-b.x0)*T,h=(b.y1-b.y0)*T;
+  const g=ctx.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,c);g.addColorStop(1,d);
+  ctx.shadowColor='#000b';ctx.shadowBlur=30;ctx.fillStyle=g;ctx.fillRect(x,y,w,h);ctx.shadowBlur=0;
+  ctx.strokeStyle='#e8d69d';ctx.lineWidth=7;ctx.strokeRect(x+3,y+3,w-6,h-6);
+  ctx.strokeStyle='#fff6c21d';ctx.lineWidth=1;
+  for(let ix=b.x0+1;ix<b.x1;ix+=4){ctx.beginPath();ctx.moveTo(ix*T,y);ctx.lineTo(ix*T,y+h);ctx.stroke();}
+  for(let iy=b.y0+1;iy<b.y1;iy+=4){ctx.beginPath();ctx.moveTo(x,iy*T);ctx.lineTo(x+w,iy*T);ctx.stroke();}
+  ctx.font='900 30px system-ui';ctx.fillStyle='#fff9e2';
+  ctx.shadowColor='#14252a';ctx.shadowBlur=5;
+  ctx.fillText('ZONE '+b.zone+' · '+b.name,x+25,y+55);ctx.shadowBlur=0;
+ }
+ ctx.restore();
+}
+function paintTestWarnings(){
+ if(!testMode)return;
+ for(const e of enemy){
+  if(e.zone!==labZone)continue;
+  if(e.type==='spider'&&(e.webWarn||e.webCloud)){
+   const a=e.webWarn||e.webCloud,t=Number(e.webWarn?.remaining||0);
+   const radius=(3.1*larvaLevelSize())*T,px=a.x*T,py=a.y*T;
+   ctx.save();ctx.beginPath();ctx.arc(px,py,radius,0,Math.PI*2);
+   ctx.fillStyle=e.webWarn?'rgba(250,67,89,.18)':'rgba(220,230,254,.27)';ctx.fill();
+   ctx.strokeStyle=e.webWarn?'#ff9d7d':'#edf3ff';ctx.lineWidth=4;ctx.setLineDash(e.webWarn?[11,8]:[4,5]);ctx.stroke();ctx.setLineDash([]);
+   if(e.webWarn){ctx.textAlign='center';ctx.fillStyle='#fff2db';ctx.font='900 26px system-ui';ctx.fillText(t.toFixed(1)+'초',px,py-10);}
+   else{ctx.strokeStyle='#f3f5ffbb';ctx.lineWidth=2;for(let k=0;k<8;k++){
+    const ang=k*Math.PI/4;ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(ang)*radius,py+Math.sin(ang)*radius);ctx.stroke();
+   }}
+   ctx.restore();
+  }
+ }
+}
 function paintFloor(){ctx.fillStyle='#092a34';ctx.fillRect(0,0,screenW,screenH);const g=ctx.createLinearGradient(0,0,screenW,screenH);g.addColorStop(0,'#246163');g.addColorStop(.65,'#123c4a');g.addColorStop(1,'#0b2233');ctx.fillStyle=g;ctx.fillRect(0,0,screenW,screenH);ctx.strokeStyle='#b3f0d70a';ctx.lineWidth=1;for(let i=0;i<15;i++){ctx.beginPath();ctx.arc(screenW*.4,screenH*.48,i*75+clock*3,0,Math.PI*2);ctx.stroke()}}
 // VISUAL ONLY: the tile-grid collision logic stays intact. Render contiguous matte as one continuous surface.
 function hashBite(x,y,k=0){let n=(x*92837111+y*689287499+k*283923481)>>>0;n=(n^(n>>>13))*1274126177>>>0;return (n>>>8)/16777216}
@@ -1080,6 +1155,7 @@ function paintZoneCinematic(){
 function paintMonsters(){
    for(const e of enemy){if(e.zone>state.unlockedZone)continue;
     const x=e.x*T,y=e.y*T,w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
+    if(testMode&&e.type==='spider'){paintTestSpider(e,x,y,w);continue;}
     const colors={hunter:['#e79c76','#98584a'],wander:['#ceace2','#856ba4'],
       nest:['#b9a48b','#78624c'],bouncer:['#98d8a3','#558861'],moss:['#7ecbb2','#408a78'],
       shell:['#e3ad71','#936c45'],flutter:['#a4c9fa','#638ab5'],spiky:['#e999b1','#98536e'],
@@ -1429,7 +1505,7 @@ function paintPlayer(){
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.restore();
 }
 function paintFX(){for(const p of particles){ctx.globalAlpha=clamp(p.ttl*2,0,1);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.rad,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;for(const f of floatTexts){ctx.save();ctx.fillStyle='#fff3bc';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.shadowBlur=7;ctx.shadowColor='#000';ctx.fillText(f.text,f.x,f.y);ctx.restore()}}
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);if(testMode)paintTestArenaFloor();else{paintWorld();paintHabitatWalls();paintCoinPickups();}paintMonsters();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintCoinFlights();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
+function render(){ctx.setTransform(dpr,0,0,dpr,0,0);paintFloor();const left=screenW/2-cam.x*cam.scale,top=screenH/2-cam.y*cam.scale;ctx.save();ctx.translate(left,top);ctx.scale(cam.scale,cam.scale);if(testMode)paintTestArenaFloor();else{paintWorld();paintHabitatWalls();paintCoinPickups();}paintMonsters();if(testMode)paintTestWarnings();(window.landTopWorm?.body||paintStretchedBody)();paintFX();paintGas();(window.landTopWorm?.player||paintPlayer)();ctx.restore();paintCoinFlights();paintZoneCinematic();if(levelMoment>0){ctx.globalAlpha=levelMoment*.12;ctx.fillStyle='#f8d38c';ctx.fillRect(0,0,screenW,screenH);ctx.globalAlpha=1}}
 let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.15)return;lastMini=clock;const w=mini.width,h=mini.height,iw=w/CW,ih=h/CH;minictx.clearRect(0,0,w,h);minictx.fillStyle='#cdb58f';minictx.fillRect(0,0,w,h);for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const v=world[at(x,y)];if(v===OWN){minictx.fillStyle='#6bc5a4';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}else if(v===CUT){minictx.fillStyle='#f2cd8f';minictx.fillRect(x*iw,y*ih,iw+.2,ih+.2)}}for(const coin of state.coinPickups||[]){if(coin.zone>state.unlockedZone||world[coin.id]!==FREE)continue;minictx.fillStyle='#ffdc51';minictx.beginPath();minictx.arc((coin.id%CW+.5)*iw,(Math.floor(coin.id/CW)+.5)*ih,2.3,0,6.3);minictx.fill()}for(const e of enemy){if(e.zone>state.unlockedZone)continue;minictx.fillStyle='#bb6767';minictx.beginPath();minictx.arc(e.x*iw,e.y*ih,3,0,6.3);minictx.fill()}minictx.fillStyle='#fff';minictx.beginPath();minictx.arc((player.x+.5)*iw,(player.y+.5)*ih,4,0,6.3);minictx.fill();
  const r=HABITATS[state.unlockedZone-1];minictx.fillStyle='rgba(6,19,29,.62)';
  minictx.fillRect(0,0,w,r.y0*ih);minictx.fillRect(0,r.y1*ih,w,h-r.y1*ih);
