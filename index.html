@@ -746,16 +746,63 @@ function monsterGaze(e){
  const len=Math.hypot(px,py)||1;
  return {dx:px/len,dy:py/len,dist:len};
 }
+// Preview-only attacks. Production enemies keep their existing behavior.
+function updateTestSpider(e,dt,gaze){
+ e.webCooldown=Math.max(0,(e.webCooldown||0)-dt);
+ if(e.webCloud){
+  e.webCloud.remaining-=dt;
+  if(e.webCloud.remaining<=0)e.webCloud=null;
+ }
+ if(e.webWarn){
+  e.webWarn.remaining-=dt;
+  if(e.webWarn.remaining<=0){
+   const p=e.webWarn;e.webWarn=null;
+   e.webCloud={x:p.x,y:p.y,remaining:.85};
+   e.webCooldown=8.3;
+   window.wwSfx?.('crack');
+   if(Math.hypot(player.wx-p.x,player.wy-p.y)<=3.1*larvaLevelSize()){
+    webSlow=1.8;toast('거미줄에 걸렸어! 잠시 이동 속도 감소',1.4);
+   }else toast('휙! 거미줄 회피 성공!',1.2);
+  }
+ }else if(e.webCooldown<=0&&gaze.dist<11.5){
+  // Target locks at warning start; no homing during the 2s dodge window.
+  e.webWarn={x:player.wx,y:player.wy,remaining:2};
+  e.webCooldown=8.3;
+  toast('거미가 조준 중! 2초 안에 빨간 원 밖으로!',1.8);
+ }
+}
 function enemyUpdate(dt){for(const e of enemy){
- if(e.zone>state.unlockedZone||e.type==='nest')continue;
+ if(e.zone>state.unlockedZone||(testMode&&e.zone!==labZone)||e.type==='nest')continue;
  const gaze=monsterGaze(e),radius=monsterHitRadius(e);
+ if(testMode&&e.type==='spider'){
+  updateTestSpider(e,dt,gaze);continue;
+ }
+ if(testMode&&e.type==='beetle'){
+  e.chargeCooldown=Math.max(0,(e.chargeCooldown||0)-dt);
+  if(e.chargeWindup>0){
+   e.chargeWindup=Math.max(0,e.chargeWindup-dt);
+   e.alert=true;
+   if(e.chargeWindup===0)e.chargeTime=1.05;
+   continue;
+  }
+  if((e.chargeTime||0)>0)e.chargeTime=Math.max(0,e.chargeTime-dt);
+  else if(e.chargeCooldown<=0&&gaze.dist<10){
+   e.chargeWindup=.8;
+   e.chargeCooldown=7.5;
+   e.chargeDx=gaze.dx;e.chargeDy=gaze.dy;
+   toast('딱정벌레가 부르르 떨며 돌진을 준비해!',1.6);
+   continue;
+  }
+ }
  const sight=radius+8.5; // proximity to the drawn eyes/shell, in world tiles
  const eyeContact=gaze.dist<sight&&gaze.dist>radius*.72;
  e.alert=eyeContact;
- const speed=eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:e.type==='flutter'?.86:.70);
+ const charging=testMode&&e.type==='beetle'&&e.chargeTime>0;
+ const speed=charging?1.8:(eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:e.type==='flutter'?.86:.70));
  e.turn=(e.turn||0)+dt;
  let dx=e.dx,dy=e.dy;
- if(eyeContact){
+ if(charging){dx=e.chargeDx||gaze.dx;dy=e.chargeDy||gaze.dy;}
+ else if(eyeContact){
    // Floating, unhurried pursuit with subtle sideways drift.
    const sway=Math.sin(clock*1.7+(e.seed||0))*.18;
    dx=gaze.dx-gaze.dy*sway;dy=gaze.dy+gaze.dx*sway;
@@ -1155,7 +1202,8 @@ function paintZoneCinematic(){
 }
 function paintMonsters(){
    for(const e of enemy){if(e.zone>state.unlockedZone)continue;
-    const x=e.x*T,y=e.y*T,w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
+    let x=e.x*T,y=e.y*T;const w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
+    if(testMode&&e.type==='beetle'&&e.chargeWindup>0)x+=Math.sin(clock*62)*w*.048;
     if(testMode&&e.type==='spider'){paintTestSpider(e,x,y,w);continue;}
     const colors={hunter:['#e79c76','#98584a'],wander:['#ceace2','#856ba4'],
       nest:['#b9a48b','#78624c'],bouncer:['#98d8a3','#558861'],moss:['#7ecbb2','#408a78'],
