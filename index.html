@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
-<!-- v0.2.17: live tunnel mint outline; distinguish the fixed full-board border from unlock boundaries -->
+<!-- v0.2.18: entire world frame is the ONLY anchor for cracker isolation -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -478,19 +478,36 @@ if(dest===OWN&&trail.length)sealTrail();updateHUD();return true;}
 function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n;i++){particles.push({x:(x+.38+fx*.21)*T+rand(-T*.22,T*.22),y:(y+.38+fy*.21)*T+rand(-T*.22,T*.22),vx:rand(-36,36)+fx*28,vy:rand(-38,22)+fy*28,ttl:rand(.3,.7),rad:rand(.8,2.7),col:i%3?'#c9945b':'#f4d69b'})}}
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast(state.level%10===0?'성장 변신! Lv.'+state.level+' · 더 넓게 갉아먹기!':'레벨 '+state.level+'! 속도 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
 function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*.7)+monsterCaught*30);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
-function components(){let visited=new Uint8Array(world.length),groups=[];for(let i=0;i<world.length;i++){if(world[i]!==FREE||visited[i]||!zoneAllowed(i%CW+.5,Math.floor(i/CW)+.5))continue;let group=[],stack=[i];visited[i]=1;for(let k=0;k<stack.length;k++){let id=stack[k],x=id%CW,y=Math.floor(id/CW);group.push(id);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let nx=x+dx,ny=y+dy;if(!inside(nx,ny)||!zoneAllowed(nx+.5,ny+.5))continue;let next=at(nx,ny);if(world[next]===FREE&&!visited[next]){visited[next]=1;stack.push(next)}}}groups.push(group)}return groups}
-// A locked habitat edge is not an OWN wall: cracker continues behind it.
-// Physical map edges are protected as well; future world expansions can extend there.
-// ONLY regions completely surrounded by player-claimed territory may fall.
-function exposedToOutside(tiles){
- for(const id of tiles){
-  const x=id%CW,y=Math.floor(id/CW);
-  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-   const nx=x+dx,ny=y+dy;
-   if(!inside(nx,ny)||!zoneAllowed(nx+.5,ny+.5))return true;
-  }
+// v0.2.18: ONLY the genuine FULL WORLD perimeter anchors unclaimed crackers.
+// Habitat unlock borders do not exist in this topology; all 152×216 cells are connected.
+// Seed a 4-neighbour flood fill from FREE cells on the physical outermost edge.
+function components(){
+ const reachable=new Uint8Array(world.length),queue=new Int32Array(world.length);
+ let head=0,tail=0;
+ function seed(x,y){const i=at(x,y);if(world[i]===FREE&&!reachable[i]){reachable[i]=1;queue[tail++]=i;}}
+ for(let x=0;x<CW;x++){seed(x,0);seed(x,CH-1);}
+ for(let y=1;y<CH-1;y++){seed(0,y);seed(CW-1,y);}
+ while(head<tail){
+  const i=queue[head++],x=i%CW,y=(i/CW)|0;
+  if(x>0){const j=i-1;if(world[j]===FREE&&!reachable[j]){reachable[j]=1;queue[tail++]=j;}}
+  if(x<CW-1){const j=i+1;if(world[j]===FREE&&!reachable[j]){reachable[j]=1;queue[tail++]=j;}}
+  if(y>0){const j=i-CW;if(world[j]===FREE&&!reachable[j]){reachable[j]=1;queue[tail++]=j;}}
+  if(y<CH-1){const j=i+CW;if(world[j]===FREE&&!reachable[j]){reachable[j]=1;queue[tail++]=j;}}
  }
- return false;
+ // Only FREE components not reachable from the REAL outside frame may fall.
+ const islands=[];
+ for(let i=0;i<world.length;i++){
+  if(world[i]!==FREE||reachable[i])continue;
+  const island=[],stack=[i];reachable[i]=1;
+  for(let k=0;k<stack.length;k++){
+   const id=stack[k],x=id%CW,y=(id/CW)|0;island.push(id);
+   for(const j of [x>0?id-1:-1,x<CW-1?id+1:-1,y>0?id-CW:-1,y<CH-1?id+CW:-1]){
+    if(j>=0&&world[j]===FREE&&!reachable[j]){reachable[j]=1;stack.push(j);}
+   }
+  }
+  islands.push(island);
+ }
+ return islands;
 }
 function sealTrail(){
  bodyJoin=bodyLine.length?{line:bodyLine.map(p=>({...p})),life:.45,total:.45}:null;
@@ -499,12 +516,12 @@ function sealTrail(){
  for(const i of path)world[i]=OWN;
  trail=[];biteMarks=[];markSlabDirty();
  const groups=components();
- const detached=groups.filter(g=>!exposedToOutside(g));
+ const detached=groups;
  if(!detached.length){
-   // Returning to OWN is necessary, but touching a locked border never closes an island.
+   // The cut did not isolate any cracker from the genuine outermost frame.
    for(const i of path)world[i]=FREE;
    markSlabDirty();state.fullness=Math.max(0,state.fullness-2);
-   toast('맵 경계는 땅이 끊긴 곳이 아니야. 내 땅으로 완전히 둘러싸야 점령해!',2.5);
+   toast('전체 맵의 진짜 외곽과 연결된 크래커는 떨어지지 않아!',2.5);
    updateHUD();save();return;
  }
  const falling=detached.flat();
