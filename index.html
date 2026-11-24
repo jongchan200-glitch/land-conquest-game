@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
-<!-- v0.2.18: entire world frame is the ONLY anchor for cracker isolation -->
+<!-- v0.2.19: camera wider at every level; monsters track with eyes and float toward nearby player -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -548,8 +548,40 @@ function monsterCanOccupy(e,x,y){
   }
   return true;
 }
-function enemyUpdate(dt){for(const e of enemy){if(e.zone>state.unlockedZone||e.type==='nest')continue;const speed=e.type==='hunter'?.57:e.type==='wander'?.72:.9;e.turn+=dt;let dx=e.dx,dy=e.dy;if(e.type==='hunter'&&trail.length&&e.turn>.6){dx=(player.x-e.x)*.14;dy=(player.y-e.y)*.14;e.turn=0}else if(e.type==='wander'&&e.turn>1.2){dx=rand(-1,1);dy=rand(-1,1);e.turn=0}
-const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;let nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;let i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL||!monsterCanOccupy(e,nx,ny)){e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;continue}e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;}
+// Gaze follows the larva even before the monster becomes alert.
+// Alertness begins when the larva reaches the visible eye-contact vicinity.
+function monsterGaze(e){
+ const px=player.x+.5-e.x,py=player.y+.5-e.y;
+ const len=Math.hypot(px,py)||1;
+ return {dx:px/len,dy:py/len,dist:len};
+}
+function enemyUpdate(dt){for(const e of enemy){
+ if(e.zone>state.unlockedZone||e.type==='nest')continue;
+ const gaze=monsterGaze(e),radius=monsterHitRadius(e);
+ const sight=radius+8.5; // proximity to the drawn eyes/shell, in world tiles
+ const eyeContact=gaze.dist<sight&&gaze.dist>radius*.72;
+ e.alert=eyeContact;
+ const speed=eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:.70);
+ e.turn=(e.turn||0)+dt;
+ let dx=e.dx,dy=e.dy;
+ if(eyeContact){
+   // Floating, unhurried pursuit with subtle sideways drift.
+   const sway=Math.sin(clock*1.7+(e.seed||0))*.18;
+   dx=gaze.dx-gaze.dy*sway;dy=gaze.dy+gaze.dx*sway;
+ }else if(e.type==='hunter'&&trail.length&&e.turn>.6){
+   dx=gaze.dx;dy=gaze.dy;e.turn=0;
+ }else if(e.type==='wander'&&e.turn>1.2){
+   dx=rand(-1,1);dy=rand(-1,1);e.turn=0;
+ }
+ const mag=Math.hypot(dx,dy)||1;dx/=mag;dy/=mag;
+ const nx=e.x+dx*speed*dt,ny=e.y+dy*speed*dt;
+ const i=at(clamp(Math.floor(nx),0,CW-1),clamp(Math.floor(ny),0,CH-1));
+ if(!inside(nx,ny)||world[i]===OWN||world[i]===FALL||!monsterCanOccupy(e,nx,ny)){
+   e.dx=-e.dx+rand(-.12,.12);e.dy=-e.dy+rand(-.12,.12);e.turn=1.2;
+   continue;
+ }
+ e.x=nx;e.y=ny;e.dx=dx;e.dy=dy;
+}
 if(trail.length){for(const e of enemy){if(e.zone>state.unlockedZone)continue;
   // The monster's actual shell, rather than only its centre point, is dangerous.
   // The fuzzy outer feet are decorative and do not count as a hit.
@@ -593,7 +625,8 @@ function mapPosition(){
 }
 function cameraUpdate(dt){
   const cur=mapPosition(),progress=capture()/GOAL;
-  let goalZoom=clamp(1.04-Math.min(1,progress)*.34+.015*(state.level-1),.60,1.15);
+  // Keep the world noticeably wider in view; leveling up must never zoom us closer.
+  let goalZoom=clamp(.78-Math.min(1,progress)*.25,.43,.82);
   let targetX=screenW>WIDTH*goalZoom?WIDTH/2:cur.x+T*2.6;
   let targetY=screenH>HEIGHT*goalZoom?HEIGHT/2:cur.y-T*.3;
   // Fairness: exposed body parts remain on-screen as the larva stretches.
@@ -606,7 +639,7 @@ function cameraUpdate(dt){
     const fitY=(screenH-230)/Math.max(230,b-t+T*4.5);
     const mix=clamp((bodyTotal-.65)/2.9,0,1);
     const blend=mix*mix*(3-2*mix);
-    const zoom=clamp(Math.min(fitX,fitY),.64,1.38);
+    const zoom=clamp(Math.min(fitX,fitY)*.82,.43,.86);
     goalZoom+=(Math.min(goalZoom,zoom)-goalZoom)*blend;
     targetX+=((l+r)/2-targetX)*blend;
     targetY+=((t+b)/2-targetY)*blend;
@@ -832,12 +865,16 @@ function paintMonsters(){
     ctx.fillStyle='rgba(255,251,222,.19)';ctx.beginPath();ctx.ellipse(-w*.34,-w*.40,w*.29,w*.13,-.55,0,Math.PI*2);ctx.fill();
     // The existing distinctive wide-eyed face is preserved and clarified.
     const eyeY=-w*.19,eyeR=w*.245;
+    const gaze=monsterGaze(e),pupilDx=gaze.dx*w*.080,pupilDy=gaze.dy*w*.080;
     ctx.fillStyle='#f4eedf';ctx.beginPath();ctx.arc(-w*.29,eyeY,eyeR,0,Math.PI*2);
     ctx.arc(w*.29,eyeY,eyeR,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#38292a';ctx.beginPath();ctx.arc(-w*.25,eyeY+w*.035,w*.113,0,Math.PI*2);
-    ctx.arc(w*.33,eyeY+w*.035,w*.113,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#fff9e9';ctx.beginPath();ctx.arc(-w*.282,eyeY-w*.012,w*.041,0,Math.PI*2);
-    ctx.arc(w*.295,eyeY-w*.012,w*.041,0,Math.PI*2);ctx.fill();
+    // Draw pupils in the same gaze direction, contained within the whites.
+    ctx.fillStyle='#38292a';ctx.beginPath();
+    ctx.arc(-w*.29+pupilDx,eyeY+pupilDy,w*.113,0,Math.PI*2);
+    ctx.arc(w*.29+pupilDx,eyeY+pupilDy,w*.113,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff9e9';ctx.beginPath();
+    ctx.arc(-w*.29+pupilDx-w*.030,eyeY+pupilDy-w*.045,w*.041,0,Math.PI*2);
+    ctx.arc(w*.29+pupilDx-w*.030,eyeY+pupilDy-w*.045,w*.041,0,Math.PI*2);ctx.fill();
     // One small facial mark, not a new monster redesign.
     ctx.strokeStyle=shade;ctx.lineWidth=Math.max(1.4,w*.047);ctx.beginPath();
     ctx.arc(0,w*.235,w*.145,.22,Math.PI-.22);ctx.stroke();
