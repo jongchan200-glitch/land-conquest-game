@@ -132,10 +132,9 @@ const START_X=80,START_Y=216;
 // The first monster tier should read as BIG even on a zoomed-out map.
 // Sizes are in WORLD pixels and independent of the camera's zoom factor;
 // they do not shrink as the larva levels up. Later worlds can add larger tiers.
-const MONSTER_BASE_MAGNIFICATION=2.5;
-const monsterBaseRadius=e=>e.type==='nest'?25:e.type==='hunter'?19:14;
-const MONSTER_ZONE_SCALE=[2.25,4.95,7.2]; // vs previous 2.5x: enormous habitat predators
-const monsterRadius=e=>monsterBaseRadius(e)*MONSTER_BASE_MAGNIFICATION*MONSTER_ZONE_SCALE[Math.max(0,Math.min(2,(e.zone||1)-1))];
+const MONSTER_ZONE_SCALE=[1,1.18,1.38,1.58,1.78,1.98];
+const monsterBaseRadius=e=>e.type==='nest'?43:e.type==='beetle'?37:e.type==='spiky'?35:e.type==='shell'?33:31;
+const monsterRadius=e=>monsterBaseRadius(e)*MONSTER_ZONE_SCALE[Math.max(0,Math.min(HABITATS.length-1,(e.zone||1)-1))]*(e.sizeScale||1);
 const monsterHitRadius=e=>monsterRadius(e)*.78/T;
 // The protagonist grows during the run; monster world sizes remain unchanged.
 // Head and near-head body must both use this multiplier.
@@ -377,6 +376,7 @@ function load(){
      x:clamp(e.x,0,CW-1),y:clamp(e.y,0,CH-1),turn:0,seed:i*3.2,immobile:e.type==='nest'}));
      if(!enemy.length)makeEnemies();}
    state.unlockedZone=clamp(Math.floor(Number(state.unlockedZone)||1),1,HABITATS.length);
+   if(!Array.isArray(state.spawnedZones))state.spawnedZones=Array.from({length:state.unlockedZone},(_,i)=>i+1);
    zoneTransition=null;
   // An older save may contain orphan CUT cells without an active trail.
   if(!trail.length)for(let k=0;k<world.length;k++)if(world[k]===CUT)world[k]=FREE;
@@ -387,32 +387,37 @@ function load(){
   return true;
 }
 function newWorld({next=false}={}){if(next)state.stage=Math.min(64,state.stage+1);state.level=1;state.xp=0;state.upgrades={...defaultState().upgrades};state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);state.unlockedZone=1;zoneTransition=null;for(let y=HABITATS[0].y0;y<HABITATS[0].y1;y++)for(let x=HABITATS[0].x0;x<HABITATS[0].x0+BASE_TERRITORY_WIDTH;x++)world[at(x,y)]=OWN;player={x:START_X,y:START_Y,ox:START_X,oy:START_Y,dirX:1,dirY:0,phase:1};analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:.78};manualCameraZoom=null;autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
-function makeEnemies(){
-  // Each habitat owns its predators. Higher zones are genuinely enormous,
-  // not small enemies artificially enlarged by a camera zoom.
-  const points=[
-    ['bouncer',1,12.7,108.5],['wander',1,41,123],['hunter',1,33,90],
-    ['bouncer',2,85,58],['wander',2,89,156],['hunter',2,65,43],
-    ['bouncer',3,132,68],['wander',3,131,152],['hunter',3,82,16],
-    ['nest',1,42,108],['nest',2,87,109],['nest',3,132,109]
-  ];
-  enemy=points.map(([type,zone,x,y],i)=>({type,zone,x,y,
-    dx:i%2?.38:-.42,dy:i%2?-.51:.34,turn:0,seed:i*3.4,immobile:type==='nest'}));
-  // A migrated 10x save can own the old spawn spot. Never spawn a giant
-  // predator directly inside an already claimed piece of the photograph.
-  const offsets=[[0,0],[7,0],[0,-8],[0,8],[12,4],[-9,5],[-7,-12],[15,-15]];
-  enemy=enemy.filter(e=>{
-    for(const [dx,dy] of offsets){
-      const xx=e.x+dx,yy=e.y+dy;
-      if(monsterCanOccupy(e,xx,yy)){e.x=xx;e.y=yy;return true;}
-    }
-    const bounds=HABITATS[e.zone-1];
-    for(let y=bounds.y0+4;y<bounds.y1-4;y+=4)
-    for(let x=bounds.x0+4;x<bounds.x1-4;x+=4)
-      if(monsterCanOccupy(e,x+.5,y+.5)){e.x=x+.5;e.y=y+.5;return true;}
-    return false;
-  });
+const MONSTER_COUNTS=[10,9,10,11,12,14];
+const MONSTER_FAMILIES=[
+ ['bouncer','wander','moss','shell'],
+ ['wander','moss','shell','flutter','cyclops'],
+ ['moss','shell','flutter','cyclops','beetle'],
+ ['flutter','cyclops','beetle','spiky','hunter'],
+ ['shell','spiky','hunter','beetle','nest'],
+ ['cyclops','hunter','beetle','spiky','nest','flutter']
+];
+function monsterRand(n){let x=Math.sin(n*12.9898+78.233)*43758.5453;return x-Math.floor(x)}
+function spawnMissingMonsters(){
+ const z=state.unlockedZone;
+ state.spawnedZones=state.spawnedZones||[];
+ if(state.spawnedZones.includes(z))return;
+ const box=HABITATS[z-1],types=MONSTER_FAMILIES[z-1];
+ for(let k=0;k<MONSTER_COUNTS[z-1];k++){
+  const type=types[k%types.length];
+  for(let n=0;n<1100;n++){
+   const seed=z*370031+k*1301+n*37;
+   const x=box.x0+3+monsterRand(seed+.5)*Math.max(1,box.x1-box.x0-6);
+   const y=box.y0+3+monsterRand(seed+31)*Math.max(1,box.y1-box.y0-6);
+   const e={type,zone:z,x,y,dx:Math.cos(seed)*.4,dy:Math.sin(seed)*.4,
+    turn:0,seed:k*3.4+z*2.1,sizeScale:.90+(k%4)*.075,immobile:type==='nest'};
+   if(zoneOf(x,y)!==z||Math.hypot(x-START_X,y-START_Y)<8||!monsterCanOccupy(e,x,y))continue;
+   if(enemy.some(o=>Math.hypot(o.x-x,o.y-y)<monsterHitRadius(o)+monsterHitRadius(e)+2.2))continue;
+   enemy.push(e);break;
+  }
+ }
+ state.spawnedZones.push(z);
 }
+function makeEnemies(){enemy=[];state.spawnedZones=[];spawnMissingMonsters();}
 
 function getImage(){const ci=Math.floor((state.stage-1)/8),number=(state.stage-1)%8+1;photo.src=(number===1&&characters[ci]?.image)||'';softPhotoReady=false}
 function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
@@ -599,7 +604,7 @@ function enemyUpdate(dt){for(const e of enemy){
  const sight=radius+8.5; // proximity to the drawn eyes/shell, in world tiles
  const eyeContact=gaze.dist<sight&&gaze.dist>radius*.72;
  e.alert=eyeContact;
- const speed=eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:.70);
+ const speed=eyeContact?.49:(e.type==='hunter'?.57:e.type==='wander'?.72:e.type==='flutter'?.86:.70);
  e.turn=(e.turn||0)+dt;
  let dx=e.dx,dy=e.dy;
  if(eyeContact){
@@ -934,8 +939,11 @@ function paintZoneCinematic(){
 function paintMonsters(){
    for(const e of enemy){if(e.zone>state.unlockedZone)continue;
     const x=e.x*T,y=e.y*T,w=monsterRadius(e),bob=Math.sin(clock*(e.type==='nest'?1.4:3)+e.seed)*Math.min(3.5,w*.052);
-    const col=e.type==='hunter'?'#d08770':e.type==='wander'?'#bd9dc9':e.type==='nest'?'#a38767':'#a5c975';
-    const shade=e.type==='hunter'?'#7f443c':e.type==='wander'?'#6f527c':e.type==='nest'?'#66523f':'#5b7d48';
+    const colors={hunter:['#e79c76','#98584a'],wander:['#ceace2','#856ba4'],
+      nest:['#b9a48b','#78624c'],bouncer:['#98d8a3','#558861'],moss:['#7ecbb2','#408a78'],
+      shell:['#e3ad71','#936c45'],flutter:['#a4c9fa','#638ab5'],spiky:['#e999b1','#98536e'],
+      cyclops:['#bda8ec','#7463a5'],beetle:['#8fc6d0','#4c8192']};
+    const [col,shade]=colors[e.type]||colors.bouncer;
     ctx.save();ctx.translate(x,y+bob);
     // Monster feet sit BEHIND the volumetric shell and move asynchronously.
     ctx.lineCap='round';ctx.lineJoin='round';
@@ -955,7 +963,26 @@ function paintMonsters(){
     ctx.shadowBlur=0;ctx.shadowOffsetY=0;
     ctx.strokeStyle='rgba(54,43,41,.28)';ctx.lineWidth=Math.max(1,w*.037);ctx.stroke();
     ctx.fillStyle='rgba(255,251,222,.19)';ctx.beginPath();ctx.ellipse(-w*.34,-w*.40,w*.29,w*.13,-.55,0,Math.PI*2);ctx.fill();
-    // The existing distinctive wide-eyed face is preserved and clarified.
+    // Species-specific ears, wings, shell plating, thorns and petal details.
+    if(e.type==='shell'||e.type==='beetle'){
+      ctx.strokeStyle=shade;ctx.lineWidth=w*.095;ctx.beginPath();ctx.moveTo(0,-w*.72);ctx.quadraticCurveTo(-w*.13,0,0,w*.63);ctx.stroke();
+      ctx.fillStyle='rgba(255,255,237,.24)';for(const side of [-1,1]){ctx.beginPath();ctx.ellipse(side*w*.35,w*.08,w*.23,w*.43,side*.22,0,6.283);ctx.fill();}
+    }else if(e.type==='flutter'||e.type==='moss'){
+      ctx.fillStyle=e.type==='flutter'?'#b6e6ff':'#d0efa0';
+      for(const side of [-1,1]){ctx.beginPath();ctx.ellipse(side*w*.78,-w*.27,w*.25,w*.46,side*.45,0,6.283);ctx.fill();}
+    }else if(e.type==='spiky'||e.type==='hunter'){
+      ctx.fillStyle=e.type==='spiky'?'#ffe2ec':'#f4c7a5';
+      for(let n=0;n<8;n++){let a=n*.7854;ctx.beginPath();ctx.moveTo(Math.cos(a-.24)*w*.75,Math.sin(a-.24)*w*.60);ctx.lineTo(Math.cos(a)*w*1.08,Math.sin(a)*w*.86);ctx.lineTo(Math.cos(a+.24)*w*.75,Math.sin(a+.24)*w*.60);ctx.fill();}
+    }else if(e.type==='nest'){
+      ctx.strokeStyle='#f8daa5';ctx.lineWidth=w*.105;for(let k=-1;k<=1;k++){ctx.beginPath();ctx.arc(k*w*.3,w*.15,w*.20,0,6.283);ctx.stroke();}
+    }
+    // The eyes are directional for every species.
+
+    if(e.type==='cyclops'){
+      const g=monsterGaze(e);ctx.fillStyle='#fff9ef';ctx.beginPath();ctx.arc(0,-w*.19,w*.35,0,6.283);ctx.fill();
+      ctx.fillStyle='#4e3463';ctx.beginPath();ctx.arc(g.dx*w*.08,-w*.19+g.dy*w*.08,w*.17,0,6.283);ctx.fill();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(g.dx*w*.08-w*.04,-w*.24+g.dy*w*.08,w*.05,0,6.283);ctx.fill();
+    }else{
     const eyeY=-w*.19,eyeR=w*.245;
     const gaze=monsterGaze(e),pupilDx=gaze.dx*w*.080,pupilDy=gaze.dy*w*.080;
     ctx.fillStyle='#f4eedf';ctx.beginPath();ctx.arc(-w*.29,eyeY,eyeR,0,Math.PI*2);
@@ -967,6 +994,7 @@ function paintMonsters(){
     ctx.fillStyle='#fff9e9';ctx.beginPath();
     ctx.arc(-w*.29+pupilDx-w*.030,eyeY+pupilDy-w*.045,w*.041,0,Math.PI*2);
     ctx.arc(w*.29+pupilDx-w*.030,eyeY+pupilDy-w*.045,w*.041,0,Math.PI*2);ctx.fill();
+    }
     // One small facial mark, not a new monster redesign.
     ctx.strokeStyle=shade;ctx.lineWidth=Math.max(1.4,w*.047);ctx.beginPath();
     ctx.arc(0,w*.235,w*.145,.22,Math.PI-.22);ctx.stroke();
