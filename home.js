@@ -82,7 +82,7 @@
    html=`<div class="banner"><strong>탐험 상점</strong><div>보유 <b style="color:#f8daa4">${num(state.coins)} 코인</b> · 강화는 현재 카드 맵에서만 유지돼.</div></div>
    <h3>이번 맵 성장 강화</h3>
    ${shopTile('capacity','포만 용량 +3','삼키기 전까지 더 많이 갉아먹어','⚗')}
-   ${shopTile('speed','씹는 속도','크래커를 빠르게 전진','↗')}
+   ${shopTile('speed','씹는 속도','지형을 더 빠르게 갉아먹어','↗')}
    ${shopTile('digest','소화 시간 감소','삼키기 멈춤을 짧게','◷')}
    ${shopTile('biteArea','먹는 폭 강화','레벨에 따라 더 넓은 크래커를 갉아먹어','◈')}
    ${shopTile('moveSpeed','이동 속도','내 땅에서 더 빠르게 이동','➤')}
@@ -96,6 +96,7 @@
   }else if(which==='settings'){
    html=`<div class="info-card"><b>화면 설정</b><br>게임 플레이는 기존 세로 전체화면을 유지해.</div>
    <button type="button" class="home-action" data-home-action="fullscreen">⛶ 전체 화면 전환</button>
+   <button type="button" class="home-action" data-home-action="toggle-minimap">▦ 미니맵 ${miniOn?'끄기':'켜기'}</button>
    <div class="info-card"><b>조작</b><br>왼손 조이스틱으로 이동 · 오른손 버튼 한 번 누르면 앙 한 입 · 길게 누르면 연속 갉아먹기 · PC 방향키/WASD + Space</div>
    <div class="info-card"><b>장기 탐험 저장</b><br>5초마다 자동 저장해. 하트를 모두 잃으면 이번 구역의 점령 진행은 끝나지만, 코인과 수집 카드는 남아. 기기/브라우저별 로컬 저장이므로 데이터를 지우면 복원되지 않을 수 있어.<br><button type="button" class="home-action" data-home-action="save-export">↓ 진행 데이터 백업</button><label class="home-action" style="display:inline-block;cursor:pointer">↑ 백업 파일 불러오기<input id="homeSaveImport" type="file" accept=".json,application/json" style="display:none"></label></div>
    <p class="notice">와그작 와그작 · 모든 언어에서 하나의 앱으로 즐길 수 있어. 광고 기능은 실제 앱 출시 전 연결 예정.</p>`;
@@ -150,12 +151,13 @@
   if(action==='save-export'){
    save();const data=localStorage.getItem(SAVE_KEY);if(!data)return;
    const blob=new Blob([data],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-   a.href=url;a.download='chew-and-claim-stage-'+state.stage+'-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);return;
+   a.href=url;a.download='wagjak-stage-'+state.stage+'-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);return;
   }
   if(action==='daily-coin'){if(!dailyUsed()){try{localStorage.setItem(dailyKey,dayId())}catch(e){}state.coins+=30;save();updateHUD();refreshStats();renderPanel('shop');}return}
   
   
   if(action==='turn-left'||action==='turn-right'){window.home3D?.setYaw(window.home3D.getYaw()+(action==='turn-left'?-1:1)*Math.PI/2);return}
+  if(action==='toggle-minimap'){miniOn=!miniOn;mini.classList.toggle('visible',miniOn);renderPanel('settings');return;}
   if(action==='fullscreen'){doAction('screen');return}
  });
  let collectionTouchX=null;
