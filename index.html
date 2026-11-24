@@ -94,11 +94,11 @@ const LEGACY_CW=34,LEGACY_CH=48;
 const CW=304,CH=432,T=25,WIDTH=CW*T,HEIGHT=CH*T,OWN=1,FREE=0,CUT=2,FALL=3,GOAL=70;
 // The true perimeter is the full 304×432 frame, 4× the old area. Unlock seams are not walls.
 const HABITATS=[
- {x0:76,y0:182,x1:130,y1:250,name:'새싹 초원',target:78},
- {x0:64,y0:166,x1:142,y1:266,name:'햇살 언덕',target:78},
- {x0:52,y0:148,x1:164,y1:292,name:'이슬 숲',target:78},
- {x0:40,y0:122,x1:200,y1:330,name:'가시 정원',target:78},
- {x0:24,y0:76,x1:248,y1:380,name:'거인의 길',target:78},
+ {x0:76,y0:182,x1:130,y1:250,name:'새싹 초원',target:80},
+ {x0:64,y0:166,x1:142,y1:266,name:'햇살 언덕',target:80},
+ {x0:52,y0:148,x1:164,y1:292,name:'이슬 숲',target:80},
+ {x0:40,y0:122,x1:200,y1:330,name:'가시 정원',target:80},
+ {x0:24,y0:76,x1:248,y1:380,name:'거인의 길',target:80},
  {x0:0,y0:0,x1:CW,y1:CH,name:'최후의 정원',target:GOAL}
 ];
 const zoneOf=(x,y)=>{for(let z=0;z<HABITATS.length;z++){const b=HABITATS[z];if(x>=b.x0&&x<b.x1&&y>=b.y0&&y<b.y1)return z+1;}return HABITATS.length;};
@@ -134,10 +134,15 @@ const START_X=80,START_Y=216;
 // they do not shrink as the larva levels up. Later worlds can add larger tiers.
 const MONSTER_ZONE_SCALE=[1,1.18,1.38,1.58,1.78,1.98];
 const monsterBaseRadius=e=>e.type==='nest'?43:e.type==='beetle'?37:e.type==='spiky'?35:e.type==='shell'?33:31;
-const monsterRadius=e=>monsterBaseRadius(e)*MONSTER_ZONE_SCALE[Math.max(0,Math.min(HABITATS.length-1,(e.zone||1)-1))]*(e.sizeScale||1);
+// Every monster stays at least three times wider than the visible caterpillar head.
+ // Higher habitats keep the same approved monster shapes at even larger scales.
+const monsterRadius=e=>Math.max(
+ 130*larvaLevelSize(),
+ monsterBaseRadius(e)*MONSTER_ZONE_SCALE[Math.max(0,Math.min(HABITATS.length-1,(e.zone||1)-1))]*(e.sizeScale||1)*2.15
+);
 const monsterHitRadius=e=>monsterRadius(e)*.78/T;
-// The protagonist grows during the run; monster world sizes remain unchanged.
-// Head and near-head body must both use this multiplier.
+// Monster radius follows the larva's growth to preserve the visual size ratio.
+// Collision stays inside the visible shell, excluding decorative outer feet.
 // Five-stage cute top-view evolution locked to the approved concept sheet.
 const evolutionStage=()=>Math.min(5,1+Math.floor(Math.max(0,state.level-1)/10));
 const larvaLevelSize=()=>[1,1.14,1.29,1.45,1.63][evolutionStage()-1]*(1+Math.min(9,(state.level-1)%10)*.004);
@@ -165,6 +170,7 @@ let slabDirty=true,slabBounds={x0:0,x1:0,y0:0,y1:0};
 const markSlabDirty=()=>{slabDirty=true};
 let state,world,player,trail=[],enemy=[],chunks=[],particles=[],floatTexts=[],controls={x:0,y:0},held=false,pressed={},playStarted=false,modal='intro',modalTab='intro',miniOn=false;
 let clock=0,acc=0,lastFrame=0,cam={x:90,y:600,scale:1.15},screenW=390,screenH=844,dpr=1,digest=0,chewEffect=0,fallTimer=0,fallPieces=[],captureAfterFall=0,blink=0,toastTimer=0,saveAcc=0,autoPath=[],autoOn=false,levelMoment=0,walkPhase=0,trailBase=0,transientFinish=false,fxSound=null;
+let pendingCoinPath=[],coinFlights=[];
 let lastPlayerSnapshot=null;
 // Continuous analog steering is separate from the unchanged tile/territory simulation.
 // x/y always remain valid integer tile IDs; wx/wy are true sub-tile centres for rendering.
@@ -392,10 +398,11 @@ function load(){
   state.fullness=trail.length?Math.max(0,Number(old.fullness)||0):0;chunks=[];digest=0;fallPieces=[];biteMarks=[];
   manualCameraZoom=Number.isFinite(old.savedCameraZoom)?old.savedCameraZoom:null;
   markSlabDirty();
+  ensureCoinPickups();
   if(legacy)save(); // after a successful migration, same saved stage/coins/albums
   return true;
 }
-function newWorld({next=false}={}){if(next)state.stage=Math.min(64,state.stage+1);state.level=1;state.xp=0;state.upgrades={...defaultState().upgrades};state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);state.unlockedZone=1;zoneTransition=null;for(let y=HABITATS[0].y0;y<HABITATS[0].y1;y++)for(let x=HABITATS[0].x0;x<HABITATS[0].x0+BASE_TERRITORY_WIDTH;x++)world[at(x,y)]=OWN;player={x:START_X,y:START_Y,ox:START_X,oy:START_Y,dirX:1,dirY:0,phase:1};analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:.78};manualCameraZoom=null;autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
+function newWorld({next=false}={}){if(next)state.stage=Math.min(64,state.stage+1);state.coinPickups=null;pendingCoinPath=[];coinFlights=[];state.level=1;state.xp=0;state.upgrades={...defaultState().upgrades};state.hearts=3;state.fullness=0;world=new Uint8Array(CW*CH);state.unlockedZone=1;zoneTransition=null;for(let y=HABITATS[0].y0;y<HABITATS[0].y1;y++)for(let x=HABITATS[0].x0;x<HABITATS[0].x0+BASE_TERRITORY_WIDTH;x++)world[at(x,y)]=OWN;player={x:START_X,y:START_Y,ox:START_X,oy:START_Y,dirX:1,dirY:0,phase:1};analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;biteTarget=-1;trail=[];enemy=[];makeEnemies();ensureCoinPickups();digest=0;fallPieces=[];biteMarks=[];markSlabDirty();particles=[];floatTexts=[];cam={x:player.x*T,y:player.y*T,scale:.78};manualCameraZoom=null;autoPath=[];autoOn=false;held=false;playStarted=true;state.tiles=null;save();updateHUD()}
 const MONSTER_COUNTS=[10,9,10,11,12,14];
 const MONSTER_FAMILIES=[
  ['bouncer','wander','moss','shell'],
@@ -428,8 +435,84 @@ function spawnMissingMonsters(){
 }
 function makeEnemies(){enemy=[];state.spawnedZones=[];spawnMissingMonsters();}
 
+// Per-card-map coins. Claimed coins never respawn on save/reload.
+function ensureCoinPickups(){
+ if(Array.isArray(state.coinPickups)){
+  const used=new Set();
+  state.coinPickups=state.coinPickups.filter(p=>{
+   if(!p||!Number.isInteger(p.id)||p.id<0||p.id>=world.length||used.has(p.id)||world[p.id]!==FREE)return false;
+   used.add(p.id);return true;
+  });
+  return;
+ }
+ const items=[],stage=Math.max(1,Number(state.stage)||1);
+ for(let z=1;z<=HABITATS.length;z++){
+  const b=HABITATS[z-1],count=4+z*2,minGap=9+z*2;
+  for(let j=0;j<count;j++){
+   for(let trial=0;trial<1400;trial++){
+    const seed=stage*31723+z*100003+j*1097+trial*19;
+    const x=b.x0+3+Math.floor(monsterRand(seed+.17)*Math.max(1,b.x1-b.x0-6));
+    const y=b.y0+3+Math.floor(monsterRand(seed+31.71)*Math.max(1,b.y1-b.y0-6));
+    const id=at(x,y);
+    if(!inside(x,y)||zoneOf(x+.5,y+.5)!==z||world[id]!==FREE)continue;
+    if(Math.hypot(x-START_X,y-START_Y)<10)continue;
+    if(items.some(p=>Math.hypot(p.id%CW-x,Math.floor(p.id/CW)-y)<minGap))continue;
+    if(enemy.some(e=>e.zone===z&&Math.hypot(e.x-x,e.y-y)<monsterHitRadius(e)+2.5))continue;
+    items.push({id,zone:z});break;
+   }
+  }
+ }
+ state.coinPickups=items;
+}
+// Reward amounts displayed in the shop and on the coin-rule panel.
+function fallReward(n){
+ if(n<10)return 0;
+ if(n<20)return 5;
+ if(n<30)return 12;
+ if(n<50)return 25;
+ if(n<100)return 45;
+ return 80+Math.floor((n-100)/50)*25;
+}
+window.wwFallReward=fallReward;
+function queueCoinFlight(x,y){
+ if(coinFlights.length<16)coinFlights.push({x,y,age:0,duration:.92});
+}
+function paintCoinPickups(){
+ if(!Array.isArray(state.coinPickups)||!state.coinPickups.length)return;
+ const view=visibleRange(),p=.88+.12*Math.sin(clock*3.1);
+ ctx.save();
+ for(const coin of state.coinPickups){
+  if(coin.zone>state.unlockedZone||world[coin.id]!==FREE)continue;
+  const x=coin.id%CW,y=Math.floor(coin.id/CW);
+  if(x<view.x0-1||x>view.x1||y<view.y0-1||y>view.y1)continue;
+  const px=(x+.5)*T,py=(y+.5)*T-2+Math.sin(clock*2.8+x)*1.8;
+  ctx.save();ctx.translate(px,py);
+  ctx.shadowColor='#ffdc4c';ctx.shadowBlur=15*p;
+  ctx.fillStyle='#fff19a';ctx.beginPath();ctx.arc(0,0,10.5,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle='#df941d';ctx.beginPath();ctx.arc(0,0,8.4,0,Math.PI*2);ctx.fill();
+  ctx.lineWidth=1.4;ctx.strokeStyle='#fff6c4';ctx.beginPath();ctx.arc(0,0,6.9,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#fff9da';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',0,.4);
+  ctx.restore();
+ }
+ ctx.restore();
+}
+function paintCoinFlights(){
+ if(!coinFlights.length)return;
+ const el=document.getElementById('wwCoins'),r=el?.getBoundingClientRect();
+ const tx=r?r.left+r.width*.5:screenW-50,ty=r?r.top+r.height*.5:58;
+ ctx.save();
+ for(const p of coinFlights){
+  const t=clamp(p.age/p.duration,0,1),ease=1-Math.pow(1-t,3);
+  const sx=screenW*.5+(p.x*T-cam.x)*cam.scale,sy=screenH*.5+(p.y*T-cam.y)*cam.scale;
+  const px=sx+(tx-sx)*ease,py=sy+(ty-sy)*ease-37*Math.sin(t*Math.PI);
+  ctx.globalAlpha=1-Math.max(0,(t-.82)/.18);
+  ctx.fillStyle='#ffe16a';ctx.strokeStyle='#fff8c8';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(px,py,6+2*(1-t),0,Math.PI*2);ctx.fill();ctx.stroke();
+ }
+ ctx.restore();
+}
 function getImage(){const ci=Math.floor((state.stage-1)/8),number=(state.stage-1)%8+1;photo.src=(number===1&&characters[ci]?.image)||'';softPhotoReady=false}
-function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
+function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}pendingCoinPath=[];coinFlights=[];getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
 function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.add('show');toastTimer=seconds}
 function tickSound(freq=300,dur=.075,vol=.016){try{if(Number(window.wwPrefs?.sfx??70)<=0)return;if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol*(window.wwPrefs?.sfx??70)/100,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
@@ -459,7 +542,7 @@ function moveAnalog(dir,dt){
   const tx=Math.floor(nx),ty=Math.floor(ny);
    if(!inside(tx,ty))return false;
    if(!zoneAllowed(tx+.5,ty+.5)){
-     if(clock-zoneBarrierNotice>1.8){zoneBarrierNotice=clock;toast('봉인된 구역이야! 현재 구역을 90% 점령하면 열려.',1.8)}
+     if(clock-zoneBarrierNotice>1.8){zoneBarrierNotice=clock;toast('봉인된 구역이야! 현재 구역을 80% 점령하면 열려.',1.8)}
      return false;
    }
    const dest=world[at(tx,ty)];
@@ -535,7 +618,25 @@ if(dest===FREE){startBiteVisual(Math.max(.58,chewDelay()));if(before===OWN&&!tra
 if(dest===OWN&&trail.length)sealTrail();window.wwSfx?.('crawl');updateHUD();return true;}
 function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n;i++){particles.push({x:(x+.38+fx*.21)*T+rand(-T*.22,T*.22),y:(y+.38+fy*.21)*T+rand(-T*.22,T*.22),vx:rand(-36,36)+fx*28,vy:rand(-38,22)+fy*28,ttl:rand(.3,.7),rad:rand(.8,2.7),col:i%3?'#c9945b':'#f4d69b'})}}
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast([11,21,31,41].includes(state.level)?'애벌레 진화 '+evolutionStage()+'단계! 뿔·무늬·먹기 폭 성장!':'레벨 '+state.level+'! 속도 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
-function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*1.55)+monsterCaught*55);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
+function scoreArea(ids,monsterCaught){
+ const n=ids.length,base=fallReward(n),captured=new Set(ids);
+ for(const id of pendingCoinPath)captured.add(id);
+ pendingCoinPath=[];
+ let pickups=0;
+ state.coinPickups=state.coinPickups.filter(p=>{
+  if(!captured.has(p.id))return true;
+  pickups++;queueCoinFlight(p.id%CW+.5,Math.floor(p.id/CW)+.5);return false;
+ });
+ const found=pickups*10,monsterBonus=monsterCaught*22,coins=base+found+monsterBonus;
+ state.coins+=coins;addXP(Math.round(n*1.55)+monsterCaught*55);state.captures++;
+ if(coins>0)queueCoinFlight(player.x+.5,player.y+.5);
+ const message=n+'칸 낙하! '+(base?'+'+base+' 코인':'10칸 미만 · 낙하 보상 없음')+
+  (pickups?' · 황금 코인 '+pickups+'개 +'+found:'')+
+  (monsterCaught?' · 몬스터 '+monsterCaught+'마리 +'+monsterBonus:'');
+ toast(message,2.9);
+ floatTexts.push({text:n+'칸 낙하 · +'+coins+'코인',x:player.x*T,y:player.y*T,ttl:2});
+ updateHUD();save();
+}
 // v0.2.21: ONLY the genuine FULL WORLD perimeter anchors unclaimed crackers.
 // Habitat unlock borders do not exist in this topology; all 304×432 cells are connected.
 // Seed a 4-neighbour flood fill from FREE cells on the physical outermost edge.
@@ -578,11 +679,13 @@ function sealTrail(){
  if(!detached.length){
    // The cut did not isolate any cracker from the genuine outermost frame.
    for(const i of path)world[i]=FREE;
+   pendingCoinPath=[];
    markSlabDirty();state.fullness=Math.max(0,state.fullness-2);
    toast('전체 맵의 진짜 외곽과 연결된 크래커는 떨어지지 않아!',2.5);
    updateHUD();save();return;
  }
  const falling=detached.flat();
+ pendingCoinPath=path;
  const islandIds=new Set(falling);
  captureAfterFall=enemy.filter(e=>islandIds.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1)))).length;
  for(const i of falling)world[i]=FALL;
@@ -591,8 +694,8 @@ function sealTrail(){
  window.wwSfx?.('crack');pulse(80);
 }
 
-function reviveCurrentMap(){state.hearts=3;state.fullness=0;player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;analogCenter();trail=[];resetBody();digest=0;transientFinish=false;save();updateHUD()}
-function loseLife(reason){if(modal)return;tapGrace=null;tapFollow=null;biteMotion=null;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
+function reviveCurrentMap(){pendingCoinPath=[];coinFlights=[];state.hearts=3;state.fullness=0;player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;analogCenter();trail=[];resetBody();digest=0;transientFinish=false;save();updateHUD()}
+function loseLife(reason){if(modal)return;pendingCoinPath=[];tapGrace=null;tapFollow=null;biteMotion=null;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
 // Oversized monsters cannot slip their visible shell into already-owned land.
 function monsterCanOccupy(e,x,y){
   const rx=monsterHitRadius(e),ry=rx*.80;
