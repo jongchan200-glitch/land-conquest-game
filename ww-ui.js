@@ -1,9 +1,9 @@
-/* WAGEUJAK WAGEUJAK — HUD, app-local preferences & localization.
+/* WAGU WAGU — HUD, app-local preferences & localization.
    Play Store design: no bundled SDK/remote dependency; native bridge can replace BGM/ads later. */
 (function(){
 'use strict';
 const STORE='wagjak-ui-preferences-v1';
-let prefs={language:'auto',bgm:15,sfx:70};
+let prefs={language:'auto',bgm:35,sfx:75};
 try{prefs={...prefs,...JSON.parse(localStorage.getItem(STORE)||'{}')}}catch(e){}
 const accepted=['auto','ko','en','es','ja','pt-BR'];
 function locale(){
@@ -159,11 +159,20 @@ function apply(){
  const sheet=document.getElementById('sheet');if(sheet)translate(sheet);
 }
 function setLanguage(v){if(!accepted.includes(v))return; prefs.language=v;keep();apply();}
-function volume(field,value){prefs[field]=Math.max(0,Math.min(100,Math.round(Number(value)||0)));keep();if(field==='bgm')window.wwBgm?.setVolume(prefs.bgm);}
-function settingsMarkup(){const t=k=>locale()==='ko'?k:translations[k]?.[langIndex[locale()]]||k;
+function volume(field,value){
+ if(field!=='bgm'&&field!=='sfx')return;
+ prefs[field]=Math.max(0,Math.min(100,Math.round(Number(value)||0)));
+ keep();
+ if(field==='bgm')window.wwBgm?.setVolume(prefs.bgm);
+}
+function settingsMarkup(){
+ const t=k=>locale()==='ko'?k:translations[k]?.[langIndex[locale()]]||k;
  return '<div class="ww-language-row"><label for="wwLanguage">'+t('언어 설정')+' / Language</label><select id="wwLanguage">'+languageOptions.map(([v,label])=>'<option value="'+v+'" '+(prefs.language===v?'selected':'')+'>'+label+'</option>').join('')+'</select></div>'+
- '<div class="ww-language-row"><label>'+t('배경음악')+' / BGM</label><div class="ww-volume"><input id="wwBgmVolume" type="range" min="0" max="100" step="1" value="'+prefs.bgm+'"><output id="wwBgmOutput">'+prefs.bgm+'</output></div>'+
- '<label>'+t('효과음')+' / SFX</label><div class="ww-volume"><input id="wwSfxVolume" type="range" min="0" max="100" step="1" value="'+prefs.sfx+'"><output id="wwSfxOutput">'+prefs.sfx+'</output></div></div>';
+ '<div class="ww-language-row"><label for="wwBgmVolume">'+t('배경음악')+' / BGM</label><div class="ww-volume"><input id="wwBgmVolume" type="range" min="0" max="100" step="1" value="'+prefs.bgm+'"><output id="wwBgmOutput">'+prefs.bgm+'</output></div>'+
+ '<button class="home-action" type="button" data-ww-audio-test="bgm">▶ 음악 미리듣기</button>'+
+ '<label for="wwSfxVolume">'+t('효과음')+' / SFX</label><div class="ww-volume"><input id="wwSfxVolume" type="range" min="0" max="100" step="1" value="'+prefs.sfx+'"><output id="wwSfxOutput">'+prefs.sfx+'</output></div>'+
+ '<button class="home-action" type="button" data-ww-audio-test="sfx">▶ 효과음 미리듣기</button>'+
+ '<small id="wwAudioHint" aria-live="polite">음량은 0~100으로 따로 저장돼. 음악을 들어보면서 조절할 수 있어.</small></div>';
 }
 window.wwPrefs=prefs;window.wwLocale=locale;window.wwApplyLanguage=apply;window.wwTranslate=translate;window.wwSetLanguage=setLanguage;window.wwSetVolume=volume;window.wwSettingsMarkup=settingsMarkup;
 window.wwT=(key)=>locale()==='ko'?key:(translations[key]?.[langIndex[locale()]]||key);
@@ -209,30 +218,132 @@ function shuffleOrder(){
  shuffled=tracks.map((_,i)=>i);
  for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
 }
+let previewMode=false;
 const bgm={
  get available(){return tracks.length===4;},
  get playing(){return playing;},
- setVolume(v){if(soundtrack)soundtrack.volume=Math.max(0,Math.min(1,v/100));if(prefs.bgm===0)this.pause()},
- async play(){
-  if(prefs.bgm<=0||window.__homeIsOpen)return;
-  if(!tracks.length){await loadBgm();if(!tracks.length)return;}
+ setVolume(v){
+  if(soundtrack)soundtrack.volume=Math.max(0,Math.min(1,Number(v)/100||0));
+  if(prefs.bgm===0){this.pause();return;}
+  if(!document.hidden&&(previewMode||!window.__homeIsOpen))this.play(previewMode);
+ },
+ async play(preview=false){
+  if(preview)previewMode=true;
+  if(prefs.bgm<=0||document.hidden||(window.__homeIsOpen&&!previewMode))return false;
+  if(!tracks.length){await loadBgm();if(!tracks.length)return false;}
+  if(prefs.bgm<=0||document.hidden||(window.__homeIsOpen&&!previewMode))return false;
   if(!soundtrack){
-   soundtrack=new Audio();soundtrack.preload='auto';
+   soundtrack=new Audio();
+   soundtrack.preload='auto';
    soundtrack.addEventListener('ended',()=>this.next());
    shuffleOrder();trackIndex=0;soundtrack.src=tracks[shuffled[trackIndex]];
   }
-  if(!soundtrack.paused){playing=true;return}
-  try{soundtrack.volume=prefs.bgm/100;await soundtrack.play();playing=true}catch(e){playing=false}
+  soundtrack.volume=prefs.bgm/100;
+  if(!soundtrack.paused){playing=true;return true;}
+  try{await soundtrack.play();playing=true;return true;}
+  catch(e){playing=false;console.warn('BGM playback needs interaction',e);return false;}
  },
+ preview(){return this.play(true);},
  next(){
   if(!tracks.length)return;
   trackIndex++;
   if(trackIndex>=shuffled.length){shuffleOrder();trackIndex=0;}
-  if(soundtrack){soundtrack.src=tracks[shuffled[trackIndex]];playing=false;this.play();}
+  if(soundtrack){soundtrack.src=tracks[shuffled[trackIndex]];playing=false;this.play(previewMode);}
  },
- pause(){if(soundtrack)soundtrack.pause();playing=false;}
+ pause(){if(soundtrack)soundtrack.pause();playing=false;previewMode=false;}
 };
 window.wwBgm=bgm;
+// Original, self-contained procedural game sounds: no third-party files or licenses.
+const playSfx=(()=>{
+ let ctx=null,noiseBuffer=null;
+ const last=Object.create(null);
+ const limits={bite:90,swallow:260,fart:240,crawl:235,crack:220,card:400};
+ function audio(){
+  if(!Number(prefs.sfx)||document.hidden)return null;
+  try{
+   if(!ctx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;ctx=new C();}
+   if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+   return ctx;
+  }catch(e){return null;}
+ }
+ function white(c){
+  if(noiseBuffer&&noiseBuffer.sampleRate===c.sampleRate)return noiseBuffer;
+  const frames=Math.ceil(c.sampleRate*.7),b=c.createBuffer(1,frames,c.sampleRate),a=b.getChannelData(0);
+  for(let i=0;i<frames;i++)a[i]=Math.random()*2-1;
+  noiseBuffer=b;return b;
+ }
+ function tone(c,at,duration,start,end,level,type){
+  const o=c.createOscillator(),g=c.createGain(),v=Math.min(1,Math.max(0,Number(prefs.sfx)/100));
+  o.type=type||'sine';
+  o.frequency.setValueAtTime(Math.max(25,start),at);
+  o.frequency.exponentialRampToValueAtTime(Math.max(25,end),at+duration);
+  g.gain.setValueAtTime(.0001,at);
+  g.gain.exponentialRampToValueAtTime(Math.max(.0002,level*v),at+Math.min(.025,duration*.24));
+  g.gain.exponentialRampToValueAtTime(.0001,at+duration);
+  o.connect(g);g.connect(c.destination);o.start(at);o.stop(at+duration+.005);
+ }
+ function rustle(c,at,duration,level,frequency,filterType){
+  const src=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();
+  const v=Math.min(1,Math.max(0,Number(prefs.sfx)/100));
+  src.buffer=white(c);f.type=filterType||'bandpass';f.frequency.value=frequency;f.Q.value=.75;
+  g.gain.setValueAtTime(.0001,at);
+  g.gain.exponentialRampToValueAtTime(Math.max(.0002,level*v),at+.014);
+  g.gain.exponentialRampToValueAtTime(.0001,at+duration);
+  src.connect(f);f.connect(g);g.connect(c.destination);
+  src.start(at);src.stop(at+duration+.005);
+ }
+ return function(kind){
+  if(!Object.hasOwn(limits,kind))return false;
+  const nowMs=performance.now();
+  if(nowMs-(last[kind]??-1e9)<limits[kind])return false;
+  const c=audio();if(!c)return false;
+  last[kind]=nowMs;const t=c.currentTime+.006;
+  try{
+   if(kind==='bite'){
+    rustle(c,t,.12,.19,1900,'highpass');
+    rustle(c,t+.05,.095,.12,2700,'highpass');
+    tone(c,t,.13,210,112,.095,'triangle');
+   }else if(kind==='swallow'){
+    tone(c,t,.28,440,95,.23,'sine');
+    tone(c,t+.13,.18,220,88,.13,'triangle');
+    rustle(c,t+.03,.20,.045,680,'bandpass');
+   }else if(kind==='fart'){
+    tone(c,t,.37,156,52,.21,'sawtooth');
+    tone(c,t+.07,.31,90,45,.10,'triangle');
+    rustle(c,t+.025,.31,.058,360,'lowpass');
+   }else if(kind==='crawl'){
+    rustle(c,t,.11,.033,680,'bandpass');
+    tone(c,t,.085,105,88,.018,'sine');
+   }else if(kind==='crack'){
+    rustle(c,t,.29,.21,1800,'highpass');
+    rustle(c,t+.12,.26,.13,720,'bandpass');
+    tone(c,t,.24,170,65,.08,'triangle');
+   }else if(kind==='card'){
+    tone(c,t,.24,840,1320,.15,'sine');
+    tone(c,t+.12,.28,1240,1860,.11,'sine');
+   }
+   return true;
+  }catch(e){console.warn('SFX',e);return false;}
+ };
+})();
+window.wwSfx=playSfx;
+const drawerAudio=document.getElementById('homeDrawer');
+drawerAudio?.addEventListener('click',async e=>{
+ const btn=e.target.closest('[data-ww-audio-test]');
+ if(!btn)return;
+ e.preventDefault();
+ const hint=document.getElementById('wwAudioHint');
+ if(btn.dataset.wwAudioTest==='sfx'){
+  const ok=playSfx('bite');
+  if(hint)hint.textContent=ok?'바삭! 먹기 효과음 재생 중 · 효과음 슬라이더로 조절해.':'효과음이 0이거나 오디오를 시작할 수 없어.';
+ }else{
+  if(prefs.bgm===0){if(hint)hint.textContent='배경음악 음량을 1 이상으로 올려줘.';return;}
+  if(hint)hint.textContent='배경음악을 불러오는 중…';
+  const ok=await bgm.preview();
+  if(hint&&hint.isConnected)hint.textContent=ok?'음악 재생 중 · 슬라이더를 움직여 바로 확인해.':'음악 재생에 실패했어. 터치한 뒤 다시 눌러줘.';
+ }
+});
+
 loadBgm(); // Prefetch while on the home screen: audio playback still needs user interaction.
 // HUD: preserve original element IDs and events. Move the existing save button, never duplicate it.
 const app=document.getElementById('app'),saveBtn=document.getElementById('saveBtn');
@@ -264,7 +375,7 @@ if(app&&saveBtn){
  try{window.wwUpdateHud()}catch(e){}
 }
 const title=document.querySelector('.home-title');
-if(title){const h=title.querySelector('h1'),sub=title.querySelector('p');if(h)h.innerHTML='<span>와그작</span> <span>와그작</span>';if(sub)sub.textContent='WAGEUJAK WAGEUJAK';const kicker=title.querySelector('.home-kicker');if(kicker)kicker.textContent='WAGJAK · WAGJAK';}
+if(title){const h=title.querySelector('h1'),sub=title.querySelector('p');if(h)h.innerHTML='<span>와구</span> <span>와구</span>';if(sub)sub.textContent='WAGU WAGU';const kicker=title.querySelector('.home-kicker');if(kicker)kicker.textContent='WAGU · WAGU';}
 const showcase=document.getElementById('homeShowcase');
 if(showcase){
  for(const [side,label] of [['prev','이전 캐릭터'],['next','다음 캐릭터']]){
@@ -275,7 +386,7 @@ window.wwRenderCharacterNav=()=>{const list=typeof state!=='undefined'&&Array.is
  const ready=list.length>1&&window.home3D?.setCharacter;
  for(const b of document.querySelectorAll('.home-char-nav'))b.hidden=!ready;
 };
-document.addEventListener('visibilitychange',()=>{if(document.hidden)bgm.pause();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)bgm.pause();else if(!window.__homeIsOpen&&prefs.bgm>0)bgm.play();});
 window.addEventListener('pointerdown',()=>{if(!window.__homeIsOpen)bgm.play()},{passive:true});
 apply();
 })();
