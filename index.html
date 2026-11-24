@@ -165,7 +165,8 @@ const monsterRadius=e=>{
  const rarity=e.type==='nest'?1.14:e.type==='beetle'?1.08:e.type==='spiky'?1.04:1;
  const ratio=Math.max(zone===0?1.5:MONSTER_ZONE_SCALE[zone]*.90,
    MONSTER_ZONE_SCALE[zone]*(e.sizeScale||1)*rarity);
- return 65*1.15*larvaLevelSize()*ratio*.5;
+ // Old monsters keep their original physical size when the larva evolves.
+ return 65*1.15*ratio*.5;
 };
 const monsterHitRadius=e=>monsterRadius(e)*.78/T;
 // Collision is conservative and excludes decorative feet/wings.
@@ -540,7 +541,7 @@ function paintCoinFlights(){
  ctx.restore();
 }
 function getImage(){const ci=Math.floor((state.stage-1)/8),number=(state.stage-1)%8+1;photo.src=(number===1&&characters[ci]?.image)||'';softPhotoReady=false}
-function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}pendingCoinPath=[];coinFlights=[];getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();}
+function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=false}pendingCoinPath=[];coinFlights=[];getImage();photo.onload=()=>{};updateHUD();showPanel('intro');requestAnimationFrame(loop);window.addEventListener('resize',resize);window.visualViewport?.addEventListener('resize',resize);resize();if(new URLSearchParams(location.search).has('lab'))setTimeout(startTestArena,0);}
 function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.add('show');toastTimer=seconds}
 function tickSound(freq=300,dur=.075,vol=.016){try{if(Number(window.wwPrefs?.sfx??70)<=0)return;if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol*(window.wwPrefs?.sfx??70)/100,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
@@ -1516,6 +1517,100 @@ let lastMini=0;function drawMini(){if(!miniOn||!world)return;if(clock-lastMini<.
 }
 function loop(t){if(!lastFrame)lastFrame=t;const dt=Math.min(.055,(t-lastFrame)/1000);lastFrame=t;advance(dt);cameraUpdate(dt);render();drawMini();requestAnimationFrame(loop)}
 function resize(){screenW=canvas.clientWidth||innerWidth;screenH=canvas.clientHeight||innerHeight;dpr=Math.min(2,window.devicePixelRatio||1);canvas.width=Math.round(screenW*dpr);canvas.height=Math.round(screenH*dpr)}
+// One tap switches zones or evolution stages without playing hours of progress.
+// Real save data is NEVER read back from or written to these temporary objects.
+const LAB_TYPES=[
+ ['bouncer','wander','moss','shell'],
+ ['shell','flutter','wander','moss'],
+ ['moss','cyclops','beetle','flutter'],
+ ['spiky','hunter','flutter','shell'],
+ ['beetle','nest','hunter','spiky','bouncer'],
+ ['spider','cyclops','beetle','hunter','wander','shell']
+];
+function refreshTestArenaHud(){
+ const root=$('labControls');if(!root)return;
+ root.querySelectorAll('[data-lab-zone]').forEach(b=>{
+  const active=Number(b.dataset.labZone)===labZone;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ });
+ const step=evolutionStage();
+ root.querySelectorAll('[data-lab-evolution]').forEach(b=>{
+  const active=Number(b.dataset.labEvolution)===step;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ });
+ $('labZoneName').textContent=labZone+'구역 · '+LAB_ARENAS[labZone-1].name;
+ $('labEvolutionName').textContent=step+'단계 · Lv.'+state.level;
+}
+function setTestEvolution(step){
+ if(!testMode)return;
+ step=Math.floor(Number(step));
+ if(step<1||step>5)return;
+ state.level=LAB_EVOLUTIONS[step-1];state.xp=0;
+ state.fullness=0;digest=0;resetBody();gutBoluses=[];gasPuffs=[];
+ levelMoment=.65;refreshTestArenaHud();updateHUD();
+ toast('진화 '+step+'단계 · Lv.'+state.level+' · 직접 움직여 봐!',2);
+}
+function switchTestZone(zone){
+ if(!testMode)return;
+ zone=Math.floor(Number(zone));if(zone<1||zone>6)return;
+ labZone=zone;const b=LAB_ARENAS[zone-1];
+ const x=Math.floor((b.x0+b.x1)*.5),y=Math.floor((b.y0+b.y1)*.5);
+ player={x,y,ox:x,oy:y,dirX:1,dirY:0,phase:1,moveDuration:.26};
+ analogCenter();cam.x=player.wx*T;cam.y=player.wy*T;cam.scale=.80;
+ trail=[];resetBody();digest=0;webSlow=0;gutBoluses=[];gasPuffs=[];
+ autoOn=false;autoPath=[];held=false;controls={x:0,y:0};
+ pressed={};state.hearts=3;state.fullness=0;
+ tapGrace=null;tapFollow=null;biteCharge=0;biteTarget=-1;
+ for(const e of enemy){e.webWarn=null;e.webCloud=null;e.chargeWindup=0;e.chargeTime=0;}
+ refreshTestArenaHud();updateHUD();
+ toast(zone+'구역 · '+b.name+' | 진화 단계는 위에서 변경',2.2);
+}
+function startTestArena(){
+ if(testMode)return;
+ testMode=true;labZone=1;webSlow=0;
+ // Never call newWorld() or save() from the laboratory.
+ state={...defaultState(),level:1,unlockedZone:6,coinPickups:[],spawnedZones:[1,2,3,4,5,6]};
+ world=new Uint8Array(CW*CH);world.fill(FALL);
+ for(const b of LAB_ARENAS)for(let y=b.y0;y<b.y1;y++)for(let x=b.x0;x<b.x1;x++)world[at(x,y)]=CUT;
+ enemy=[];trail=[];fallPieces=[];pendingCoinPath=[];coinFlights=[];
+ particles=[];floatTexts=[];biteMarks=[];zoneTransition=null;completionReveal=null;
+ manualCameraZoom=null;transientFinish=false;autoOn=false;autoPath=[];saveAcc=0;
+ for(let z=1;z<=6;z++){
+  const b=LAB_ARENAS[z-1],cx=(b.x0+b.x1)*.5,cy=(b.y0+b.y1)*.5;
+  const offsets=[[-9,-7],[9,-7],[-9,8],[9,8],[0,-11],[0,11]];
+  LAB_TYPES[z-1].forEach((type,i)=>{
+   const [ox,oy]=offsets[i],x=cx+ox,y=cy+oy;
+   enemy.push({zone:z,type,x,y,dx:i%2?-.18:.18,dy:.30,
+    seed:z*17+i*9,sizeScale:.95+i*.035,turn:0,immobile:type==='nest',
+    chargeCooldown:2+i,webCooldown:3+i*.3});
+  });
+  // In later zones, a surviving small meadow monster remains beside giants.
+  if(z>=5)enemy.push({zone:z,originZone:1,type:'bouncer',x:cx-3,y:cy+11,
+   dx:.08,dy:-.21,seed:90+z,sizeScale:.95,turn:0});
+ }
+ document.getElementById('landHome').hidden=true;
+ document.getElementById('homeDrawer').hidden=true;
+ window.__homeIsOpen=false;
+ $('overlay').classList.remove('open');modal=null;playStarted=true;
+ document.body.classList.add('ww-lab-mode');$('labControls').hidden=false;
+ miniOn=false;mini.classList.remove('visible');
+ switchTestZone(1);setTestEvolution(1);
+ markSlabDirty();lastFrame=performance.now();
+ window.wwBgm?.play();
+}
+function exitTestArena(){
+ if(!testMode)return;
+ // A page reload reconstructs the untouched local save, not temporary test state.
+ location.href=location.origin+location.pathname;
+}
+window.__startWaguLab=startTestArena;
+window.__waguLabDebug=()=>({active:testMode,zone:labZone,evolution:evolutionStage(),level:state?.level,
+ monsters:enemy.filter(e=>e.zone===labZone).map(e=>({type:e.type,originZone:e.originZone||e.zone,radius:monsterRadius(e)}))});
+$('labControls').addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b||!testMode)return;
+ e.preventDefault();
+ if(b.hasAttribute('data-lab-exit'))exitTestArena();
+ else if(b.dataset.labEvolution)setTestEvolution(b.dataset.labEvolution);
+ else if(b.dataset.labZone)switchTestZone(b.dataset.labZone);
+});
 function demo(){if(capture()>18||state.level>1){toast('저장 중인 장기 맵 보호: 자동 시연은 새 맵에서만 가능해.',2.2);return}for(const e of enemy){if(e.type!=='nest'){e.x=Math.max(26,e.x);e.y=Math.min(44,e.y+4)}}autoOn=true;autoPath=[];for(let i=0;i<13;i++)autoPath.push([1,0]);for(let i=0;i<10;i++)autoPath.push([0,-1]);for(let i=0;i<13;i++)autoPath.push([-1,0]);closePanel();toast('자동 시연: 길을 씹어 내 영역과 연결!',2)}
 function closePanel(){if(state.hearts<=0){showPanel('gameover');return}modal=null;$('overlay').classList.remove('open');playStarted=true;lastFrame=performance.now();window.wwBgm?.play()}
 function showPanel(type){modal=type;playStarted=false;held=false;tapGrace=null;tapFollow=null;$('act').classList.remove('held');$('overlay').classList.add('open');let html='';
@@ -1561,7 +1656,7 @@ function saveAndExit(){
  window.__openLandHome?.();
  if(!window.__openLandHome)showPanel('intro');
 }
-function doAction(action){if(action==='saveexit'){saveAndExit();return}if(action==='saveplay'){if(save()){toast('현재 위치 저장 완료',1.7);closePanel()}else toast('저장 실패 · 저장 공간을 확인해 줘',2.5);return}if(action==='play'){closePanel();return}if(action==='home'){saveAndExit();return}if(action==='menu'){showPanel('menu');return}if(action==='shop'||action==='album'||action==='help'){if(action==='album'){window.__openLandHome?.();window.__landHomeTest?.openPanel('album');return}showPanel(action);return}if(action==='tab-haena'){modalTab='haena';showPanel('album');return}if(action==='tab-anika'){modalTab='anika';showPanel('album');return}if(action==='map'){miniOn=!miniOn;mini.classList.toggle('visible',miniOn);showPanel('menu');return}if(action==='demo'){transientFinish=false;demo();return}if(action==='restart'){newWorld();closePanel();toast('새로운 지도에서 다시 출발!',2);return}if(action==='collectReward'){const card=document.querySelector('.reward-card');card?.classList.add('fly-away');setTimeout(()=>{window.__openLandHome?.();window.__landHomeTest?.openPanel('album');},820);return}if(action==='next'){if(state.stage>=64){window.__openLandHome?.();toast('64장 수집의 마지막 지도까지 완료했어!',2);return}transientFinish=false;newWorld({next:true});getImage();closePanel();toast('새로운 세계! 이번에도 카드는 완료 후 공개',2);return}if(action==='screen'){if(document.fullscreenElement){document.exitFullscreen?.()}else if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().catch(()=>toast('이 브라우저는 전체 화면 전환을 막았어.',2))}else toast('전체 화면을 지원하지 않는 브라우저야.',2);return}if(action.startsWith('buy-'))buy(action.slice(4))}
+function doAction(action){if(action==='saveexit'){saveAndExit();return}if(action==='lab'){startTestArena();return}if(action==='saveplay'){if(save()){toast('현재 위치 저장 완료',1.7);closePanel()}else toast('저장 실패 · 저장 공간을 확인해 줘',2.5);return}if(action==='play'){closePanel();return}if(action==='home'){saveAndExit();return}if(action==='menu'){showPanel('menu');return}if(action==='shop'||action==='album'||action==='help'){if(action==='album'){window.__openLandHome?.();window.__landHomeTest?.openPanel('album');return}showPanel(action);return}if(action==='tab-haena'){modalTab='haena';showPanel('album');return}if(action==='tab-anika'){modalTab='anika';showPanel('album');return}if(action==='map'){miniOn=!miniOn;mini.classList.toggle('visible',miniOn);showPanel('menu');return}if(action==='demo'){transientFinish=false;demo();return}if(action==='restart'){if(testMode){switchTestZone(labZone);closePanel();return;}newWorld();closePanel();toast('새로운 지도에서 다시 출발!',2);return}if(action==='collectReward'){const card=document.querySelector('.reward-card');card?.classList.add('fly-away');setTimeout(()=>{window.__openLandHome?.();window.__landHomeTest?.openPanel('album');},820);return}if(action==='next'){if(testMode){exitTestArena();return;}if(state.stage>=64){window.__openLandHome?.();toast('64장 수집의 마지막 지도까지 완료했어!',2);return}transientFinish=false;newWorld({next:true});getImage();closePanel();toast('새로운 세계! 이번에도 카드는 완료 후 공개',2);return}if(action==='screen'){if(document.fullscreenElement){document.exitFullscreen?.()}else if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().catch(()=>toast('이 브라우저는 전체 화면 전환을 막았어.',2))}else toast('전체 화면을 지원하지 않는 브라우저야.',2);return}if(action.startsWith('buy-'))buy(action.slice(4))}
 $('overlay').addEventListener('click',e=>{const btn=e.target.closest('[data-do]');if(btn){e.preventDefault();doAction(btn.dataset.do)}});
 $('menuBtn').addEventListener('click',()=>showPanel('menu'));
 $('saveBtn').addEventListener('click',saveAndExit);
