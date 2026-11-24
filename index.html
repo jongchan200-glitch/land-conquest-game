@@ -138,8 +138,17 @@ const monsterRadius=e=>monsterBaseRadius(e)*MONSTER_ZONE_SCALE[Math.max(0,Math.m
 const monsterHitRadius=e=>monsterRadius(e)*.78/T;
 // The protagonist grows during the run; monster world sizes remain unchanged.
 // Head and near-head body must both use this multiplier.
-const larvaLevelSize=()=>1+Math.min(2.2,Math.floor(state.level/10)*.37+(state.level%10)*.012);
-const biteWidth=()=>1+2*Math.min(3,Math.floor(state.level/10)+(state.upgrades.biteArea||0));
+// Five-stage cute top-view evolution locked to the approved concept sheet.
+const evolutionStage=()=>Math.min(5,1+Math.floor(Math.max(0,state.level-1)/10));
+const larvaLevelSize=()=>[1,1.14,1.29,1.45,1.63][evolutionStage()-1]*(1+Math.min(9,(state.level-1)%10)*.004);
+const biteWidth=()=>[1,1.5,2,3,4][evolutionStage()-1]+(state.upgrades.biteArea||0)*2;
+const EVOLUTION_COLORS=[
+ {gem:'#efbc9d',stripe:'#f4d5ad',tip:'#f8ebd0'},
+ {gem:'#b5bd5c',stripe:'#dbc786',tip:'#fff5d2'},
+ {gem:'#e9ad45',stripe:'#efb87c',tip:'#ffebcc'},
+ {gem:'#f0c5a0',stripe:'#d77970',tip:'#fff0d4'},
+ {gem:'#ffd36b',stripe:'#894c5c',tip:'#fff1d0'}
+];
 const skinTone=(shade='base')=>({peach:{base:'#f6c59e',light:'#ffddb9',dark:'#db987a',head:'#f5be9a'},mint:{base:'#91cfba',light:'#d5f8df',dark:'#539c88',head:'#a1d9bb'},coral:{base:'#f2a1b3',light:'#ffdae2',dark:'#bc657f',head:'#f7a9b7'},gold:{base:'#dfbd76',light:'#fff0b5',dark:'#ad7a3b',head:'#efcc87'}}[state?.skins?.equipped||'peach']||{base:'#f6c59e',light:'#ffddb9',dark:'#db987a',head:'#f5be9a'})[shade];
 
 const SAVE_KEY='land-conquest-v02-solo-local';
@@ -424,7 +433,7 @@ function init(){if(!load()){state=defaultState();newWorld()}else{playStarted=fal
 function toast(str,seconds=1.5){const e=$('tip');e.textContent=str;e.classList.add('show');toastTimer=seconds}
 function tickSound(freq=300,dur=.075,vol=.016){try{if(!fxSound)fxSound=new (window.AudioContext||window.webkitAudioContext)();if(fxSound.state==='suspended')fxSound.resume();const o=fxSound.createOscillator(),g=fxSound.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,fxSound.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(95,freq*.62),fxSound.currentTime+dur);g.gain.setValueAtTime(vol,fxSound.currentTime);g.gain.exponentialRampToValueAtTime(.0001,fxSound.currentTime+dur);o.connect(g);g.connect(fxSound.destination);o.start();o.stop(fxSound.currentTime+dur)}catch(e){}}
 function pulse(ms=20){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
-function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/zoneTarget()*100).toFixed(1)+'%';$('stageTitle').textContent='ZONE '+state.unlockedZone+'/'+HABITATS.length+' · 해금 '+zoneTarget()+'%';$('lv').textContent=state.level;$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'꿀꺽 · 잠깐 정지':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('stretchValue').textContent=bodyTotal.toFixed(1)+' / '+bodyMax();$('stretchFill').style.width=(bodyTotal/bodyMax()*100).toFixed(1)+'%';$('stretchFill').classList.toggle('danger',bodyTotal/bodyMax()>.83||!!recoil);$('stretchLine').firstElementChild.textContent=recoil?'쭈르륵 복귀 중':'몸 길이';$('act').classList.toggle('locked',digest>0||!!recoil);}
+function updateHUD(){const pct=capture();$('capturePct').textContent=pct.toFixed(1)+'%';$('progressFill').style.width=(pct/zoneTarget()*100).toFixed(1)+'%';$('stageTitle').textContent='ZONE '+state.unlockedZone+'/'+HABITATS.length+' · 해금 '+zoneTarget()+'%';$('lv').textContent=state.level;$('lv').title='애벌레 진화 '+evolutionStage()+'/5';$('coins').textContent=state.coins.toLocaleString('ko-KR');$('hearts').textContent=state.hearts;$('mouthValue').textContent=digest>0?'꿀꺽!':state.fullness+' / '+biteMax();$('mouthLabel').textContent=digest>0?'꿀꺽 · 잠깐 정지':'입 안의 여유';$('mouthFill').style.width=clamp(state.fullness/biteMax()*100,0,100)+'%';$('stretchValue').textContent=bodyTotal.toFixed(1)+' / '+bodyMax();$('stretchFill').style.width=(bodyTotal/bodyMax()*100).toFixed(1)+'%';$('stretchFill').classList.toggle('danger',bodyTotal/bodyMax()>.83||!!recoil);$('stretchLine').firstElementChild.textContent=recoil?'쭈르륵 복귀 중':'몸 길이';$('act').classList.toggle('locked',digest>0||!!recoil);}
 function isAction(){return held||!!pressed.Space||!!pressed.Enter||autoOn||!!tapGrace}
 function direction(){let x=controls.x,y=controls.y;if(pressed.ArrowLeft||pressed.KeyA)x-=1;if(pressed.ArrowRight||pressed.KeyD)x+=1;if(pressed.ArrowUp||pressed.KeyW)y-=1;if(pressed.ArrowDown||pressed.KeyS)y+=1;const r=Math.hypot(x,y);if(r<.23)return null;return [x/r,y/r]}
 // The original four-direction restriction lived above. The physical thumbstick now
@@ -505,12 +514,17 @@ function moveAnalog(dir,dt){
 }
 
 function widenBite(xx,yy,dx,dy){
- const radius=(biteWidth()-1)/2;if(!radius)return 0;
- // Pick cardinal perpendicular to maintain strict 4-neighbour connectivity.
+ // 1, alternating 1/2, 2, 3, 4 tile widths; growth is NOT exponential.
+ const target=biteWidth(),desired=Math.floor(target)+
+  (target%1>0&&((xx+yy)&1)===0?1:0);
+ const extra=Math.max(0,Math.min(10,desired-1));if(!extra)return 0;
  const sx=Math.abs(dx)>=Math.abs(dy)?0:1,sy=sx?0:1;let gained=0;
- for(let k=1;k<=radius;k++)for(const sign of [-1,1]){
+ for(let i=0;i<extra;i++){
+  const k=Math.floor(i/2)+1,sign=i%2===0?1:-1;
   const bx=xx+sx*k*sign,by=yy+sy*k*sign;
-  if(inside(bx,by)&&zoneAllowed(bx+.5,by+.5)&&world[at(bx,by)]===FREE){world[at(bx,by)]=CUT;trail.push(at(bx,by));gained++;}
+  if(inside(bx,by)&&zoneAllowed(bx+.5,by+.5)&&world[at(bx,by)]===FREE){
+    world[at(bx,by)]=CUT;trail.push(at(bx,by));gained++;
+  }
  }
  if(gained)markSlabDirty();return gained;
 }
@@ -519,7 +533,7 @@ player.ox=player.x;player.oy=player.y;player.x=xx;player.y=yy;player.phase=0;pla
 if(dest===FREE){startBiteVisual(Math.max(.58,chewDelay()));if(before===OWN&&!trail.length)beginBody();world[at(xx,yy)]=CUT;markSlabDirty();trail.push(at(xx,yy));widenBite(xx,yy,dx,dy);state.fullness++;chewEffect=Math.max(.53,chewDelay()*.92);biteMarks.push({x:xx,y:yy,dx,dy,age:0,duration:Math.max(.53,chewDelay()*.96)});crumbs(xx,yy,9);tickSound(rand(145,220),.115,.008);if(state.fullness>=biteMax())beginSwallow()}
 if(dest===OWN&&trail.length)sealTrail();updateHUD();return true;}
 function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n;i++){particles.push({x:(x+.38+fx*.21)*T+rand(-T*.22,T*.22),y:(y+.38+fy*.21)*T+rand(-T*.22,T*.22),vx:rand(-36,36)+fx*28,vy:rand(-38,22)+fy*28,ttl:rand(.3,.7),rad:rand(.8,2.7),col:i%3?'#c9945b':'#f4d69b'})}}
-function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast(state.level%10===0?'성장 변신! Lv.'+state.level+' · 더 넓게 갉아먹기!':'레벨 '+state.level+'! 속도 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
+function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast([11,21,31,41].includes(state.level)?'애벌레 진화 '+evolutionStage()+'단계! 뿔·무늬·먹기 폭 성장!':'레벨 '+state.level+'! 속도 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
 function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*1.55)+monsterCaught*55);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
 // v0.2.18: ONLY the genuine FULL WORLD perimeter anchors unclaimed crackers.
 // Habitat unlock borders do not exist in this topology; all 152×216 cells are connected.
@@ -1495,6 +1509,25 @@ init();
     ellipse(c,0,-29-jaw*2,5.8+jaw*4.0,3.6+jaw*4.4);c.stroke();
     ellipse(c,0,-30-jaw*2,1.5+jaw*5,0.7+jaw*4.5);c.fillStyle='#663f3d';c.fill();
     if(jaw>.14){ellipse(c,0,-29-jaw*2,1+jaw*2.8,0.6+jaw*2.3);c.fillStyle='#f3a4a3';c.fill();}
+    // A small, blunt forehead horn grows gradually; stage 1 is unmodified.
+    const evo=evolutionStage(),palette=EVOLUTION_COLORS[evo-1];
+    if(evo>=2){
+      const height=[0,0,8,13,18,24][evo],half=2.5+evo*.65;
+      c.save();c.shadowColor=palette.gem;c.shadowBlur=3+evo;
+      c.fillStyle=palette.gem;c.strokeStyle='rgba(150,97,67,.42)';c.lineWidth=.7;
+      c.beginPath();c.moveTo(-half,-6);c.quadraticCurveTo(-half*.8,-11-height*.38,0,-7-height);
+      c.quadraticCurveTo(half*.8,-11-height*.38,half,-6);
+      c.quadraticCurveTo(0,-1, -half,-6);c.closePath();c.fill();c.stroke();c.restore();
+    }
+    // Cute ivory cheek-tusks appear only at stage 3, becoming gently longer.
+    if(evo>=3){
+      const size=[0,0,0,3.5,5.5,8][evo];
+      c.fillStyle=palette.tip;c.strokeStyle='rgba(147,106,80,.26)';c.lineWidth=.7;
+      for(const side of [-1,1]){
+        c.beginPath();c.moveTo(side*25,7);c.quadraticCurveTo(side*(30+size*.36),0,side*(30+size),-2-size*.33);
+        c.quadraticCurveTo(side*(32+size*.4),12,side*25,12);c.closePath();c.fill();c.stroke();
+      }
+    }
     c.restore();
   }
   function liftedFace(x,y,scale,lift,full){
@@ -1688,7 +1721,41 @@ init();
       const q=pts[i],x=q.x+q.nx*q.r*.62,y=q.y+q.ny*q.r*.62;
       if(!i)c.moveTo(x,y);else c.lineTo(x,y);}
     c.strokeStyle='rgba(255,250,222,.34)';c.lineWidth=3.3;c.stroke();
-    c.restore();c.restore();
+    c.restore();
+    // Draw each stage's color accents and blunt nubs ON the live deformed
+    // spine. Turning, stretching and contracting always carries the details.
+    const evo=evolutionStage(),pal=EVOLUTION_COLORS[evo-1];
+    if(evo>1){
+      const count=evo+2;
+      c.save();c.clip(area);
+      if(evo>=3)for(let j=1;j<=count;j++){
+        const q=pts[Math.round(j/(count+1)*(pts.length-1))];
+        const a=Math.atan2(q.ny,q.nx)+Math.PI/2;
+        c.save();c.translate(q.x,q.y);c.rotate(a);
+        c.strokeStyle=pal.stripe;c.globalAlpha=evo===5?.63:.30+(evo-3)*.12;
+        c.lineWidth=5+evo*1.35;c.lineCap='round';
+        c.beginPath();c.moveTo(-q.r*.72,0);c.quadraticCurveTo(0,-4,q.r*.72,0);c.stroke();c.restore();
+      }
+      c.restore();
+      for(let j=1;j<=count;j++){
+        const q=pts[Math.round(j/(count+1)*(pts.length-1))],size=2.1+evo*1.15;
+        const tx=q.ny,ty=-q.nx;
+        c.save();c.translate(q.x,q.y);c.rotate(Math.atan2(ty,tx)+Math.PI/2);
+        c.fillStyle=pal.gem;c.strokeStyle='rgba(121,77,51,.24)';c.lineWidth=.65;
+        c.beginPath();c.moveTo(0,-size*1.55);c.quadraticCurveTo(size*.86,-size*.3,0,size*.90);
+        c.quadraticCurveTo(-size*.86,-size*.3,0,-size*1.55);c.fill();c.stroke();c.restore();
+        if(evo>=3)for(const side of [-1,1]){
+          const tip=2+(evo-2)*1.65;
+          c.fillStyle=pal.tip;c.beginPath();
+          c.moveTo(q.x+q.nx*side*q.r*.79,q.y+q.ny*side*q.r*.79);
+          c.quadraticCurveTo(q.x+q.nx*side*(q.r+tip*.48)+tx*3,q.y+q.ny*side*(q.r+tip*.48)+ty*3,
+            q.x+q.nx*side*(q.r+tip)+tx*1.5,q.y+q.ny*side*(q.r+tip)+ty*1.5);
+          c.quadraticCurveTo(q.x+q.nx*side*q.r*.73+tx*4,q.y+q.ny*side*q.r*.73+ty*4,
+            q.x+q.nx*side*q.r*.79,q.y+q.ny*side*q.r*.79);c.fill();
+        }
+      }
+    }
+    c.restore();
   }
   function playerPaint(){
     // Preserve the already-approved new top-view head/bite/swallow art, but its
