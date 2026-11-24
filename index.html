@@ -1213,6 +1213,181 @@ init();
 })();
 
 </script>
+<script>
+/* CHEW & CLAIM v0.2.14 — always-present caterpillar with gap-free peristaltic crawling.
+ * Pure visual replacement: game rules, hitbox, captures, saves, approved art untouched.
+ * Kept separate so the former v0.2.13 renderer remains a rollback baseline.
+ */
+(function(){
+  'use strict';
+  const TAU=Math.PI*2,clip=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const mix=(a,b,t)=>a+(b-a)*t;
+  const skin='#f6c59e';
+  let history=[],lastHead=null,travel=0,lastMoving=0;
+  function ell(c,x,y,rx,ry){c.beginPath();c.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),0,0,TAU);}
+  function turn(){
+    let a=Number.isFinite(player.turnAngle)?player.turnAngle:Math.atan2(player.dirY||0,player.dirX||1);
+    if(bodyLine.length>3&&bodyTotal>.12){const t=bodyLine[bodyLine.length-1],q=bodyLine[Math.max(0,bodyLine.length-8)];
+      if(Math.hypot(t.x-q.x,t.y-q.y)>.08)a=Math.atan2(t.y-q.y,t.x-q.x);}
+    return a;
+  }
+  function crawling(){return digest<=0&&!recoil&&(clock-lastMoveClock<.32||player.phase<.96&&clock-lastMoveClock<.85);}
+  function position(){return mapPosition();}
+  // Full free-movement motion history is independent of the claimed/cracker trail.
+  function remember(p,angle){
+    if(!lastHead||Math.hypot(p.x-lastHead.x,p.y-lastHead.y)>220){
+      history=[];for(let i=36;i>=0;i--)history.push({x:p.x-Math.cos(angle)*i*4.7,y:p.y-Math.sin(angle)*i*4.7});
+      lastHead={x:p.x,y:p.y};return;
+    }
+    const dist=Math.hypot(p.x-lastHead.x,p.y-lastHead.y);
+    if(dist>1.2){
+      const n=Math.min(16,Math.max(1,Math.ceil(dist/3.5)));
+      for(let i=1;i<=n;i++)history.push({x:mix(lastHead.x,p.x,i/n),y:mix(lastHead.y,p.y,i/n)});
+      if(history.length>500)history=history.slice(-500);
+      travel+=dist;lastHead={x:p.x,y:p.y};lastMoving=clock;
+    }
+  }
+  function sample(points,steps){
+    if(points.length<2)return null;
+    const dist=[0];for(let i=1;i<points.length;i++)dist.push(dist[i-1]+Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y));
+    const full=dist[dist.length-1];if(full<1e-3)return null;
+    const arr=[];let seg=1;
+    for(let i=0;i<=steps;i++){
+      const target=full*i/steps;
+      while(seg<dist.length-1&&dist[seg]<target)seg++;
+      const d=dist[seg]-dist[seg-1]||1,k=clip((target-dist[seg-1])/d,0,1),a=points[seg-1],b=points[seg];
+      arr.push({x:mix(a.x,b.x,k),y:mix(a.y,b.y,k),u:i/steps});
+    }
+    return {points:arr,len:full};
+  }
+  function build(){
+    if(!player)return null;
+    const p=position(),a=turn(),baseLen=98*larvaLevelSize();remember(p,a);
+    const official=(bodyJoin&&bodyJoin.life>0?bodyJoin.line:bodyLine);
+    const stretching=official&&official.length>1&&bodyTotal>.025;
+    let path=[],rawLength=0;
+    if(stretching){
+      const existing=bodyVisualLine();
+      if(existing&&existing.length>1){
+        path=existing.map(q=>({x:q.x,y:q.y}));
+        // The front always meets the interpolated head; don't leave a seam.
+        const last=path[path.length-1],dx=p.x-last.x,dy=p.y-last.y;
+        for(let i=0;i<path.length;i++){const k=Math.pow(i/(path.length-1),4);path[i].x+=dx*k;path[i].y+=dy*k;}
+        for(let i=1;i<path.length;i++)rawLength+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);
+        // CRITICAL: a one-bite path does not replace the whole caterpillar with 1 tile.
+        // Extend the existing tail backwards through the owned area, keeping its mass.
+        if(rawLength<baseLen){
+          const n=Math.max(2,Math.ceil((baseLen-rawLength)/4)),start=path[0],next=path[Math.min(5,path.length-1)];
+          let tx=next.x-start.x,ty=next.y-start.y,m=Math.hypot(tx,ty);
+          if(m<.001){tx=Math.cos(a);ty=Math.sin(a);m=1;}
+          const extra=[];for(let i=n;i>=1;i--){const d=(baseLen-rawLength)*i/n;extra.push({x:start.x-tx/m*d,y:start.y-ty/m*d});}
+          path=extra.concat(path);
+        }
+      }
+    }
+    if(path.length<2){
+      // Follow real recent turns instead of rotating a frozen straight sticker.
+      let tally=0,back=[{x:p.x,y:p.y}];
+      for(let i=history.length-1;i>0&&tally<baseLen+8;i--){
+        const v=history[i-1],q=history[i];tally+=Math.hypot(v.x-q.x,v.y-q.y);back.push(v);
+      }
+      if(tally<baseLen){const last=back[back.length-1],prev=back[Math.max(0,back.length-2)];
+        let dx=prev.x-last.x,dy=prev.y-last.y,m=Math.hypot(dx,dy);
+        if(m<.001){dx=Math.cos(a);dy=Math.sin(a);m=1;}
+        back.push({x:last.x-dx/m*(baseLen-tally),y:last.y-dy/m*(baseLen-tally)});
+      }
+      path=back.reverse();rawLength=baseLen;
+    }
+    const estimated=sample(path,Math.min(110,Math.max(35,Math.ceil(Math.max(baseLen,rawLength)/4))));
+    if(!estimated)return null;
+    const pts=estimated.points,moving=crawling();
+    const phase=clock*(moving?9.8:1.5),thin=1-.22*clip((estimated.len-baseLen)/(bodyMax()*T*.78),0,1);
+    const sway=moving?4.7:.42,roll=moving?.107:.012;
+    // Smooth turns before adding the muscular travelling wave. Keep head and tail fixed.
+    const old=pts.map(q=>({...q}));
+    for(let i=1;i<pts.length-1;i++){
+      const smooth=old.slice(Math.max(0,i-2),Math.min(pts.length,i+3));
+      pts[i].x=mix(pts[i].x,smooth.reduce((s,q)=>s+q.x,0)/smooth.length,.32);
+      pts[i].y=mix(pts[i].y,smooth.reduce((s,q)=>s+q.y,0)/smooth.length,.32);
+    }
+    for(let i=0;i<pts.length;i++){
+      const q=pts[i],prev=pts[Math.max(0,i-1)],next=pts[Math.min(pts.length-1,i+1)];
+      const vx=next.x-prev.x,vy=next.y-prev.y,l=Math.hypot(vx,vy)||1;
+      const nx=-vy/l,ny=vx/l,tx=vx/l,ty=vy/l;
+      const env=Math.pow(Math.max(0,Math.sin(Math.PI*q.u)),.75);
+      const wave=phase-q.u*TAU*2.7;
+      const lateral=sway*env*Math.sin(wave),longitudinal=(moving?1.7:0)*env*Math.sin(wave+1.4);
+      q.x+=nx*lateral+tx*longitudinal;q.y+=ny*lateral+ty*longitudinal;
+      q.nx=nx;q.ny=ny;
+      // Plump near the head, thin at the tail; always positive, even at maximum reach.
+      const taper=7.8+16.7*Math.pow(q.u,.63)+2.5*Math.sin(Math.PI*q.u);
+      q.r=taper*larvaLevelSize()*thin*(1+roll*Math.sin(wave+1));
+      for(const bolus of gutBoluses){if(bolus.time<0)continue;
+        const u=1-clip(bolus.time/bolus.duration,0,1),d=q.u-u;
+        q.r+=8*Math.exp(-d*d/.0018);}
+      q.r=Math.max(5.5,q.r);
+    }
+    // Correct normals after distortion; tight bends use the full underlying skin.
+    for(let i=0;i<pts.length;i++){
+      const b=pts[Math.max(0,i-1)],f=pts[Math.min(pts.length-1,i+1)],x=f.x-b.x,y=f.y-b.y,l=Math.hypot(x,y)||1;
+      pts[i].nx=-y/l;pts[i].ny=x/l;
+    }
+    return {pts,moving,extended:!!stretching,visibleLength:estimated.len,baseLength:baseLen};
+  }
+  function body(){
+    const data=build();if(!data)return;
+    const {pts}=data,c=ctx,first=pts[0],last=pts[pts.length-1];
+    c.save();c.lineJoin='round';c.lineCap='round';
+    // Underpaint the centerline with overlapping skin capsules. Prevents ANY
+    // transparent interior slots at acute turns or when the head is moving.
+    c.fillStyle='#f4c098';c.strokeStyle='#f4c098';
+    for(let i=1;i<pts.length;i++){
+      const p=pts[i-1],q=pts[i];
+      c.beginPath();c.moveTo(p.x,p.y);c.lineTo(q.x,q.y);
+      c.lineWidth=1.88*Math.max(p.r,q.r);c.stroke();
+    }
+    const area=new Path2D();
+    for(let i=0;i<pts.length;i++){const q=pts[i],x=q.x+q.nx*q.r,y=q.y+q.ny*q.r;
+      if(i===0)area.moveTo(x,y);else area.lineTo(x,y);}
+    area.quadraticCurveTo(last.x+Math.cos(turn())*last.r*.85,last.y+Math.sin(turn())*last.r*.85,last.x-last.nx*last.r,last.y-last.ny*last.r);
+    for(let i=pts.length-2;i>=0;i--){const q=pts[i];area.lineTo(q.x-q.nx*q.r,q.y-q.ny*q.r);}
+    area.quadraticCurveTo(first.x-Math.cos(turn())*first.r,first.y-Math.sin(turn())*first.r,first.x+first.nx*first.r,first.y+first.ny*first.r);
+    area.closePath();
+    const mid=pts[Math.floor(pts.length/2)],r=mid.r;
+    const grad=c.createLinearGradient(mid.x+mid.nx*r,mid.y+mid.ny*r,mid.x-mid.nx*r,mid.y-mid.ny*r);
+    grad.addColorStop(0,'#ffedd5');grad.addColorStop(.27,'#ffddb9');grad.addColorStop(.57,skin);grad.addColorStop(1,'#db987a');
+    c.shadowColor='rgba(75,42,30,.25)';c.shadowBlur=6;c.shadowOffsetY=3;c.fillStyle=grad;c.fill(area);
+    c.shadowBlur=0;c.shadowOffsetY=0;
+    c.save();c.clip(area);
+    // Subtle joint creases follow the muscle wave and can never tear the skin.
+    const folds=Math.max(5,Math.min(14,Math.round(data.visibleLength/23)));
+    for(let j=1;j<folds;j++){
+      const q=pts[Math.round(j/(folds)*(pts.length-1))],r=q.r;
+      c.beginPath();c.moveTo(q.x-q.nx*r*.68,q.y-q.ny*r*.68);
+      c.quadraticCurveTo(q.x+Math.cos(turn())*3,q.y+Math.sin(turn())*3,q.x+q.nx*r*.60,q.y+q.ny*r*.60);
+      c.strokeStyle='rgba(151,83,61,.12)';c.lineWidth=1.6;c.stroke();
+    }
+    c.beginPath();for(let i=0;i<pts.length;i++){
+      const q=pts[i],x=q.x+q.nx*q.r*.62,y=q.y+q.ny*q.r*.62;
+      if(!i)c.moveTo(x,y);else c.lineTo(x,y);}
+    c.strokeStyle='rgba(255,250,222,.34)';c.lineWidth=3.3;c.stroke();
+    c.restore();c.restore();
+  }
+  function playerPaint(){
+    // Preserve the already-approved new top-view head/bite/swallow art, but its
+    // new body remains underneath for the entire animation.
+    const prev=window.landTopWorm_v0213;
+    if(prev&&prev.player)prev.player();
+    else paintPlayer();
+  }
+  // Save a reference to the v0.2.13 facial animation before replacing the body.
+  window.landTopWorm_v0213=window.landTopWorm;
+  window.landTopWorm={body,player:playerPaint,revision:'v0.2.14-gapfree-wriggle',test:()=>{
+    const d=build();return {bodyVisible:!!d,samples:d?.pts.length||0,visibleLength:d?.visibleLength||0,baseLength:d?.baseLength||0,extended:!!d?.extended,crawling:!!d?.moving,fullness:state.fullness,digest};
+  }};
+})();
+
+</script>
 <script src="./home3d.js?v=031"></script>
 <script src="./home.js?v=031"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
