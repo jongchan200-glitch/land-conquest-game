@@ -22,7 +22,7 @@
  function previewArt(ch,k){
   if(!canPreview(ch))return '';
   const [x,y,w,h]=ch.previewRects[k-1]||ch.previewRects[0], [W,H]=ch.previewSize;
-  return '<span class="ww-card-crop" aria-label="'+ch.name+' '+k+'번 시안"><img loading="lazy" src="'+ch.previewSheet+'" alt="" style="left:'+(-x/w*100)+'%;top:'+(-y/h*100)+'%;width:'+(W/w*100)+'%;height:'+(H/h*100)+'%"></span>';
+  return '<span class="ww-card-crop" style="--ww-r:'+w+'/'+h+'" aria-label="'+ch.name+' '+k+'번 시안"><img loading="lazy" src="'+ch.previewSheet+'" alt="" style="left:'+(-x/w*100)+'%;top:'+(-y/h*100)+'%;width:'+(W/w*100)+'%;height:'+(H/h*100)+'%"></span>';
  }
 
  const ownedAt=(i,k)=>!!state.album[roster[i].id+'_'+String(k).padStart(2,'0')];
