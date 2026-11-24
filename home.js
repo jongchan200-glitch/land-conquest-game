@@ -5,7 +5,15 @@
  const home=document.getElementById('landHome'),drawer=document.getElementById('homeDrawer'),content=document.getElementById('homeDrawerBody'),title=document.getElementById('homeDrawerTitle');
  if(!home)return;
  const recordsKey='land-conquest-home-records-v1',previewKey='land-conquest-home-badge-preview-v1';
- let best=0,selectedPanel='',albumIndex=0;
+ let best=0,selectedPanel='',albumIndex=0,albumView='roster',selectedCard=1;
+ const roster=Array.from({length:8},(_,i)=>characters[i]||{id:'CHAR_'+String(i+1).padStart(3,'0'),name:'미공개 인물 '+String(i+1).padStart(2,'0'),english:'COMING SOON',country:'새로운 이야기',topics:Array.from({length:8},(_,j)=>j===7?'스페셜 카드':'이야기 '+(j+1))});
+ const ownedAt=(i,k)=>!!state.album[roster[i].id+'_'+String(k).padStart(2,'0')];
+ const ownedCount=i=>Array.from({length:8},(_,k)=>ownedAt(i,k+1)).filter(Boolean).length;
+ const totalOwned=()=>roster.reduce((a,_,i)=>a+ownedCount(i),0);
+ const pctCards=i=>Math.round(ownedCount(i)/8*100);
+ const dailyKey='land-conquest-daily-v1';
+ const dayId=()=>new Date().toLocaleDateString('en-CA');
+ const dailyUsed=()=>{try{return localStorage.getItem(dailyKey)===dayId()}catch(e){return true}};
  try{best=Number(JSON.parse(localStorage.getItem(recordsKey)||'{}').best)||0}catch(e){}
  function num(n){return Math.max(0,Number(n)||0).toLocaleString('ko-KR')}
  function refreshStats(){
@@ -37,27 +45,51 @@
  }
  function previewBadge(){return localStorage.getItem(previewKey)==='1'}
  function openPanel(which){selectedPanel=which;drawer.hidden=false;renderPanel(which);document.getElementById('homeDrawerClose').focus({preventScroll:true})}
+
+ function collectionHTML(){
+  const owned=totalOwned();
+  const nav=`<div class="collect-head"><div><span class="collect-kicker">THE PORTRAIT ARCHIVE</span><h3>나의 컬렉션 <em>${owned}<small> / 64</small></em></h3></div><div class="collect-orb">✦</div></div><div class="collect-progress"><span style="width:${owned/64*100}%"></span></div>`;
+  if(albumView==='detail'||albumView==='card'){
+   const i=albumIndex,ch=roster[i],n=ownedCount(i);
+   if(albumView==='card'){
+    const has=ownedAt(i,selectedCard),gold=selectedCard===8;
+    return nav+`<button class="collect-back" data-home-action="collection-detail">‹ ${ch.name} 카드첩</button><div class="collect-card-preview ${gold?'gold':''}">${has&&ch.image&&selectedCard===1?`<img src="${ch.image}" alt="${ch.name} 카드">`:`<div class="collect-empty-art">${has?'획득 완료 · 개별 사진 준비 중':'미획득 카드'}</div>`}<span>${String(selectedCard).padStart(2,'0')} / 08 ${gold?'✦ GOLD':''}</span></div><p class="collect-caption">${has?`수집 완료 · ${ch.topics?.[selectedCard-1]||'카드 이야기'}`:'아직 수집하지 않은 카드야'}</p>`;
+   }
+   let slots='';for(let k=1;k<=8;k++){
+    const got=ownedAt(i,k),gold=k===8,visual=got&&ch.image&&k===1;
+    slots+=`<button class="collect-slot ${got?'filled':'locked'} ${gold?'gold':''}" data-home-action="collection-card-${k}" aria-label="${ch.name} ${k}번 ${got?'획득':'미획득'}"><span class="collect-slot-art">${visual?`<img src="${ch.image}" alt="">`:got?'✦':'◇'}</span><span class="collect-slot-id">${String(k).padStart(2,'0')}${gold?' · GOLD':''}</span></button>`;
+   }
+   const profile=Array.from({length:8},(_,j)=>`<div class="collect-profile-line ${ownedAt(i,j+1)?'unlocked':''}"><span>${String(j+1).padStart(2,'0')}</span><span>${ownedAt(i,j+1)?(ch.topics?.[j]||'새로운 이야기'):'??? · 카드 획득 시 공개'}</span>${ownedAt(i,j+1)?'✧':'♢'}</div>`).join('');
+   return nav+`<button class="collect-back" data-home-action="collection-back">‹ 8명 컬렉션</button><div class="collect-person-bar"><strong>${ch.name}</strong><span>${n} / 8</span></div><div class="collect-slots">${slots}</div><h3 class="collect-section-title">한 장씩 열리는 이야기</h3><div class="collect-profile">${profile}</div><p class="notice">대표 사진만 등록된 인물의 다른 사진은 추후 원본이 확정되면 연결돼. 미획득 카드는 미리 표시하지 않아.</p>`;
+  }
+  const i=albumIndex,ch=roster[i],n=ownedCount(i),portrait=ch.image;
+  const indicators=roster.map((c,k)=>`<button class="collect-dot ${k===i?'active':''}" data-home-action="collection-person-${k}" aria-label="${k+1}번째 인물">${k+1}</button>`).join('');
+  const gallery=`<div class="collect-carousel"><button class="collect-arrow" data-home-action="collection-prev" aria-label="이전 인물">‹</button><button class="collect-hero ${n?'unlocked':'missing'}" data-home-action="collection-detail"><span class="collect-hero-img">${portrait?`<img src="${portrait}" alt="${ch.name} 대표 사진">`:'<span class="collect-hidden-person">✧</span>'}</span><span class="collect-hero-copy"><small>PORTRAIT ${String(i+1).padStart(2,'0')} / 08</small><strong>${ch.name}</strong><span>${n}/8 COLLECTED · ${pctCards(i)}%</span><i>${n?'카드첩 펼치기':'빈 카드첩 펼치기'} ↗</i></span></button><button class="collect-arrow" data-home-action="collection-next" aria-label="다음 인물">›</button></div>`;
+  return nav+gallery+`<div class="collect-dots">${indicators}</div><p class="collect-caption">좌우로 인물을 넘기고 카드를 눌러 8칸 카드첩을 열어봐.</p><div class="collect-mini-roster">${roster.map((c,k)=>`<button data-home-action="collection-person-${k}" class="${k===i?'active':''}">${String(k+1).padStart(2,'0')} · ${ownedCount(k)}/8</button>`).join('')}</div>`;
+ }
  function renderPanel(which=selectedPanel){
   if(!which)return;
-  title.textContent=({character:'캐릭터',shop:'상점',earn:'코인',records:'기록',settings:'설정',album:'카드 수납장'})[which]||'메뉴';
+  title.textContent=({character:'캐릭터',shop:'상점',expedition:'탐험',settings:'설정',album:'컬렉션'})[which]||'메뉴';
   let html='';
   if(which==='character'){
    html=`<div class="banner"><strong>나만의 애벌레</strong><div>중앙 캐릭터를 직접 돌리면 앞·옆·뒷모습을 볼 수 있어.</div></div>
    <div class="small-stat"><div><small>현재 레벨</small><b>Lv.${state.level}</b></div><div><small>최대 몸 길이</small><b>${bodyMax()}</b></div></div>
+   <h3>영구 보유 · 캐릭터 스킨</h3><div class="skin-grid">${[{id:'peach',label:'기본 복숭아',price:0,color:'#f6c59e'},{id:'mint',label:'민트 꼬물이',price:120,color:'#91cfba'},{id:'coral',label:'핑크 산호',price:180,color:'#f2a1b3'},{id:'gold',label:'황금 꼬물이',price:400,color:'#dfbd76'}].map(x=>`<button class="skin-pick ${state.skins?.equipped===x.id?'chosen':''}" data-home-action="skin-${x.id}"><i style="background:${x.color}"></i><span>${x.label}</span><small>${state.skins?.owned?.includes(x.id)?(state.skins?.equipped===x.id?'장착 중':'장착하기'):x.price+' 코인'}</small></button>`).join('')}</div>
    <h3>꾸미기 미리보기</h3><label class="toggle"><span>✦ 반짝 배지 (미리보기)<br><small>구매·장착 아이템이 아닌 시연 기능</small></span><input type="checkbox" id="homeBadgeSwitch" ${previewBadge()?'checked':''}></label>
    <button type="button" class="home-action" data-home-action="turn-left">↶ 왼쪽 회전</button><button type="button" class="home-action" data-home-action="turn-right">오른쪽 회전 ↷</button>
    <p class="notice">실제 게임의 확정 캐릭터 PNG는 변경하지 않았어. 중앙 3D 모델은 향후 스킨·배지 장착을 확인하기 위한 첫 입체 시제품이야.</p><button type="button" class="home-action" data-home-action="album">▣ 수집 카드 보기</button>`;
   }else if(which==='shop'){
-   html=`<div class="banner">보유 <b style="color:#f8daa4">${num(state.coins)} 코인</b><br>현재 게임의 강화 상점을 그대로 사용해. 구매하면 실제 게임에 저장돼.</div>
-   ${shopTile('capacity','포만 용량 +3','더 많은 크래커를 갉아먹어','⚗')}
-   ${shopTile('speed','씹는 속도 향상','더 빠르게 크래커를 갉아먹어','↗')}
-   ${shopTile('digest','소화 시간 감소','삼키는 정지 시간 단축','◷')}
-   <p class="notice">실제 결제/광고는 아직 연결되지 않았어. 아이템·스킨 장착 상점은 이후 추가 예정이야.</p>`;
-  }else if(which==='earn'){
-   html=`<div class="banner"><strong>현재 보유 코인</strong><div style="font-size:30px;font-weight:900;color:#f7dc9f">🪙 ${num(state.coins)}</div></div>
-   <div class="info-card"><b>게임 플레이로 코인 획득</b><br>영역을 점령하거나 몬스터를 포획하면 코인을 얻어. 스테이지 완료 시 보너스가 있어.</div>
-   <div class="info-card"><b>광고 보상 · 준비 중</b><br>보상 광고, 코인 획득소, 실제 결제는 아직 미연동이야. 시청한 것처럼 코인을 지급하거나 결제하는 기능은 없어.</div>`;
-  }else if(which==='records'){
+   html=`<div class="banner"><strong>탐험 상점</strong><div>보유 <b style="color:#f8daa4">${num(state.coins)} 코인</b> · 강화는 현재 카드 맵에서만 유지돼.</div></div>
+   <h3>이번 맵 성장 강화</h3>
+   ${shopTile('capacity','포만 용량 +3','삼키기 전까지 더 많이 갉아먹어','⚗')}
+   ${shopTile('speed','씹는 속도','크래커를 빠르게 전진','↗')}
+   ${shopTile('digest','소화 시간 감소','삼키기 멈춤을 짧게','◷')}
+   ${shopTile('biteArea','먹는 폭 강화','레벨에 따라 더 넓은 크래커를 갉아먹어','◈')}
+   ${shopTile('moveSpeed','이동 속도','내 땅에서 더 빠르게 이동','➤')}
+   <h3>코인 모으기</h3><div class="info-card"><b>✦ 오늘의 탐험 선물 · +30 코인</b><br>하루 1회 무료로 받을 수 있어.<br><button type="button" class="home-action" data-home-action="daily-coin" ${dailyUsed()?'disabled':''}>${dailyUsed()?'오늘 수령 완료':'무료 30코인 받기'}</button></div>
+   <div class="info-card"><b>▶ 짧은 보상 광고 · 연동 예정</b><br>광고 완료 시에만 게임 코인을 지급할 예정이야. 현재는 광고 송출·보상이 연결되지 않았어.</div>
+   <p class="notice">실제 결제와 광고는 작동하지 않아. 스킨은 구매 시 모든 맵에서 유지하는 별도 꾸미기 메뉴로 운영할 예정이야.</p>`;
+  }else if(which==='expedition'){
    html=`<div class="small-stat"><div><small>최고 점령률</small><b>${best.toFixed(1)}%</b></div><div><small>몬스터 포획</small><b>${num(state.captures||0)}</b></div><div><small>현재 스테이지</small><b>${state.stage}</b></div><div><small>현재 레벨</small><b>${state.level}</b></div></div>
    <div class="info-card"><b>지금 점령한 영역</b><br>${capture().toFixed(1)}% / 목표 ${GOAL}%<br><small>최고 점령률은 이 기기에 기록돼.</small></div>
    <button type="button" class="home-action" data-home-action="album">▣ 수집 카드 열기</button>`;
@@ -68,7 +100,7 @@
    <div class="info-card"><b>저장</b><br>현재 휴대폰 브라우저에 자동 저장해. 기기 간 동기화와 온라인 계정은 아직 연결되지 않았어.</div>
    <p class="notice">홈 구성과 메뉴 항목은 지옥낙하 V0.7의 구조를 옮긴 것이고, 게임별 데이터·코인은 서로 별개야.</p>`;
   }else if(which==='album'){
-   html=`<div class="banner">스테이지를 완주하면 사진 카드가 공개되고 수집돼.</div><div class="tabs"><button class="${albumIndex===0?'active':''}" data-home-action="album-haena">유해나</button><button class="${albumIndex===1?'active':''}" data-home-action="album-anika">아니카</button></div>${albumHTML(albumIndex)}`;
+   html=collectionHTML();
   }
   content.innerHTML=html;
  }
@@ -85,16 +117,36 @@
   const b=e.target.closest('[data-home-action],[data-do]');if(!b)return;
   e.preventDefault();const action=b.dataset.homeAction||b.dataset.do;
   if(action.startsWith('buy-')){buy(action.slice(4));refreshStats();renderPanel('shop');return}
-  if(action==='album'){albumIndex=0;openPanel('album');return}
-  if(action==='album-haena'){albumIndex=0;renderPanel('album');return}
-  if(action==='album-anika'){albumIndex=1;renderPanel('album');return}
+  if(action==='album'){albumIndex=0;albumView='roster';openPanel('album');return}
+  if(action==='collection-next'||action==='collection-prev'){albumIndex=(albumIndex+(action==='collection-next'?1:7))%8;albumView='roster';renderPanel('album');return}
+  if(action.startsWith('collection-person-')){albumIndex=Math.max(0,Math.min(7,Number(action.slice(18))||0));albumView='roster';renderPanel('album');return}
+  if(action==='collection-detail'){albumView='detail';renderPanel('album');return}
+  if(action==='collection-back'){albumView='roster';renderPanel('album');return}
+  if(action.startsWith('collection-card-')){selectedCard=Math.max(1,Math.min(8,Number(action.slice(16))||1));albumView='card';renderPanel('album');return}
+  if(action.startsWith('skin-')){
+   const skin=action.slice(5),prices={peach:0,mint:120,coral:180,gold:400};
+   if(!(skin in prices))return;
+   if(!state.skins)state.skins={owned:['peach'],equipped:'peach'};
+   if(!state.skins.owned.includes(skin)){
+    if(state.coins<prices[skin])return;
+    state.coins-=prices[skin];state.skins.owned.push(skin);
+   }
+   state.skins.equipped=skin;save();updateHUD();refreshStats();renderPanel('character');return;
+  }
+  if(action==='daily-coin'){if(!dailyUsed()){try{localStorage.setItem(dailyKey,dayId())}catch(e){}state.coins+=30;save();updateHUD();refreshStats();renderPanel('shop');}return}
+  
+  
   if(action==='turn-left'||action==='turn-right'){window.home3D?.setYaw(window.home3D.getYaw()+(action==='turn-left'?-1:1)*Math.PI/2);return}
   if(action==='fullscreen'){doAction('screen');return}
  });
+ let collectionTouchX=null;
+ content.addEventListener('touchstart',e=>{if(!e.target.closest('.collect-carousel'))return;collectionTouchX=e.touches[0]?.clientX||null},{passive:true});
+ content.addEventListener('touchend',e=>{if(collectionTouchX===null)return;const delta=(e.changedTouches[0]?.clientX||collectionTouchX)-collectionTouchX;collectionTouchX=null;if(Math.abs(delta)>45&&selectedPanel==='album'&&albumView==='roster'){albumIndex=(albumIndex+(delta<0?1:7))%8;renderPanel('album')}},{passive:true});
  window.addEventListener('keydown',e=>{if(e.key==='Escape'&&window.__homeIsOpen&&!drawer.hidden){closeDrawer();e.preventDefault()}});
  window.__openLandHome=openHome;
  window.__refreshLandHomePanel=renderPanel;
  window.__refreshLandHomeStats=refreshStats;
+ window.__collectionTest={rosterCount:()=>roster.length,owned:totalOwned,open:()=>{albumView='roster';openPanel('album')},select:(i)=>{albumIndex=i;albumView='detail';renderPanel('album')}};
  window.__landHomeTest={getOpen:()=>window.__homeIsOpen,panel:()=>selectedPanel,stats:()=>({best,level:state.level,coins:state.coins,badge:previewBadge(),modelActive:!!window.home3D?.active}),openPanel,enterGame:leaveHome,returnHome:openHome};
  openHome();
 })();
