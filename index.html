@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#071b22">
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon-192.png">
 <title>땅따먹기 · CHEW & CLAIM</title>
-<!-- v0.2.15: collection, detached-island cleanup, portrait blur/reveal, long-map progression -->
+<!-- v0.2.16: correct habitat boundary isolation; retain v0.2.15 features -->
 
 <style>
 :root{color-scheme:dark;--cyan:#83f1d6;--gold:#f3c886;--panel:rgba(6,23,29,.83);--muted:#a9c4bf}
@@ -39,7 +39,7 @@
 @keyframes rewardBloom{from{opacity:0;transform:scale(.6) rotateY(-50deg)}60%{opacity:1}to{opacity:1;transform:scale(1) rotateY(0)}}
 @keyframes rewardIntoAlbum{0%{opacity:1;transform:scale(1)}75%{opacity:1;transform:translate(0,-80px) scale(.25) rotate(15deg)}100%{opacity:0;transform:translate(45px,-230px) scale(.06)}}
 </style>
-<link rel="stylesheet" href="./home.css?v=035">
+<link rel="stylesheet" href="./home.css?v=036">
 </head>
 <body><main id="app"><canvas id="scene" aria-label="땅따먹기 게임 세계"></canvas><div id="vignette"></div>
 <div id="top"><div id="progress" class="glass"><div class="progressTop"><span id="stageTitle">STAGE 01 · LAND</span><b id="capturePct">0%</b></div><div class="progressRail"><div id="progressFill"></div></div></div><div id="stats"><div class="stat glass"><small>Lv</small><strong id="lv">1</strong></div><div class="stat glass"><small>코인</small><strong id="coins">0</strong></div><div class="stat glass"><small>♥</small><strong id="hearts">3</strong></div></div><button id="menuBtn" class="iconbtn glass" aria-label="메뉴 열기">☰</button></div>
@@ -479,18 +479,42 @@ function crumbs(x,y,n){const fx=player.dirX||0,fy=player.dirY||0;for(let i=0;i<n
 function addXP(n){state.xp+=n;while(state.xp>=xpLimit(state.level)){state.xp-=xpLimit(state.level);state.level++;state.coins+=25;levelMoment=1.25;toast(state.level%10===0?'성장 변신! Lv.'+state.level+' · 더 넓게 갉아먹기!':'레벨 '+state.level+'! 속도 성장 + 코인 25',2.1);tickSound(730,.27,.022);pulse(40)}}
 function scoreArea(ids,monsterCaught){const n=ids.length,coins=Math.max(1,Math.round(n*.18))+monsterCaught*22;state.coins+=coins;addXP(Math.round(n*.7)+monsterCaught*30);state.captures++;floatTexts.push({text:'+'+coins+' 코인',x:player.x*T,y:player.y*T,ttl:1.8});updateHUD();save();}
 function components(){let visited=new Uint8Array(world.length),groups=[];for(let i=0;i<world.length;i++){if(world[i]!==FREE||visited[i]||!zoneAllowed(i%CW+.5,Math.floor(i/CW)+.5))continue;let group=[],stack=[i];visited[i]=1;for(let k=0;k<stack.length;k++){let id=stack[k],x=id%CW,y=Math.floor(id/CW);group.push(id);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let nx=x+dx,ny=y+dy;if(!inside(nx,ny)||!zoneAllowed(nx+.5,ny+.5))continue;let next=at(nx,ny);if(world[next]===FREE&&!visited[next]){visited[next]=1;stack.push(next)}}}groups.push(group)}return groups}
-function sealTrail(){bodyJoin=bodyLine.length?{line:bodyLine.map(p=>({...p})),life:.45,total:.45}:null;bodyLine=[];bodyAnchor=null;bodyTotal=0;const count=trail.length,path=trail.slice();for(const i of trail)world[i]=OWN;trail=[];biteMarks=[];markSlabDirty();const groups=components();if(groups.length<2){for(const i of path)world[i]=FREE;markSlabDirty();toast('갉아먹은 길로 돌아왔어. 둘러싸면 땅을 차지해!',1.5);state.fullness=Math.max(0,state.fullness-2);save();return}
-const populated=groups.map(g=>{const set=new Set(g);return {tiles:g,enemies:enemy.filter(e=>set.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1))))}});
-// The largest FREE component is the surviving main cracker mass. Every
-// disconnected island falls, including those occupied by monsters; no more
-// arbitrary single-smallest-component selection.
-const main=populated.reduce((best,g)=>g.tiles.length>best.tiles.length?g:best,populated[0]);
-const detached=populated.filter(g=>g!==main);
-const falling=detached.flatMap(g=>g.tiles);
-for(const i of falling)world[i]=FALL;
-markSlabDirty();fallPieces=falling;fallTimer=0;
-captureAfterFall=detached.reduce((n,g)=>n+g.enemies.length,0);
-toast('분리된 크래커 조각 '+detached.length+'개가 모두 떨어진다!',2.1);tickSound(600,.14,.022);pulse(80);}
+// A locked habitat edge is not an OWN wall: cracker continues behind it.
+// Physical map edges are protected as well; future world expansions can extend there.
+// ONLY regions completely surrounded by player-claimed territory may fall.
+function exposedToOutside(tiles){
+ for(const id of tiles){
+  const x=id%CW,y=Math.floor(id/CW);
+  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+   const nx=x+dx,ny=y+dy;
+   if(!inside(nx,ny)||!zoneAllowed(nx+.5,ny+.5))return true;
+  }
+ }
+ return false;
+}
+function sealTrail(){
+ bodyJoin=bodyLine.length?{line:bodyLine.map(p=>({...p})),life:.45,total:.45}:null;
+ bodyLine=[];bodyAnchor=null;bodyTotal=0;
+ const path=trail.slice();
+ for(const i of path)world[i]=OWN;
+ trail=[];biteMarks=[];markSlabDirty();
+ const groups=components();
+ const detached=groups.filter(g=>!exposedToOutside(g));
+ if(!detached.length){
+   // Returning to OWN is necessary, but touching a locked border never closes an island.
+   for(const i of path)world[i]=FREE;
+   markSlabDirty();state.fullness=Math.max(0,state.fullness-2);
+   toast('맵 경계는 땅이 끊긴 곳이 아니야. 내 땅으로 완전히 둘러싸야 점령해!',2.5);
+   updateHUD();save();return;
+ }
+ const falling=detached.flat();
+ const islandIds=new Set(falling);
+ captureAfterFall=enemy.filter(e=>islandIds.has(at(clamp(Math.floor(e.x),0,CW-1),clamp(Math.floor(e.y),0,CH-1)))).length;
+ for(const i of falling)world[i]=FALL;
+ markSlabDirty();fallPieces=falling;fallTimer=0;
+ toast('완전히 고립된 크래커 조각 '+detached.length+'개가 떨어진다!',2.1);
+ tickSound(600,.14,.022);pulse(80);
+}
 
 function reviveCurrentMap(){state.hearts=3;state.fullness=0;player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;analogCenter();trail=[];resetBody();digest=0;transientFinish=false;save();updateHUD()}
 function loseLife(reason){if(modal)return;tapGrace=null;tapFollow=null;biteMotion=null;for(const i of trail)world[i]=FREE;trail=[];biteMarks=[];markSlabDirty();state.fullness=0;digest=0;state.hearts=Math.max(0,state.hearts-1);player.x=START_X;player.y=START_Y;player.ox=START_X;player.oy=START_Y;player.phase=1;analogCenter();resetBody();gutBoluses=[];gasPuffs=[];biteCharge=0;autoOn=false;autoPath=[];blink=1;toast(reason+' · ♥ -1',2);pulse([55,65,75]);tickSound(120,.25,.028);updateHUD();save();if(state.hearts===0){playStarted=false;showPanel('gameover')}}
@@ -1467,7 +1491,7 @@ init();
 })();
 
 </script>
-<script src="./home3d.js?v=035"></script>
-<script src="./home.js?v=035"></script>
+<script src="./home3d.js?v=036"></script>
+<script src="./home.js?v=036"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body></html>
