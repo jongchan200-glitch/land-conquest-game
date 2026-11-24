@@ -125,7 +125,15 @@
    ${shopTile('digest','소화 시간 감소','삼키기 멈춤을 짧게','◷')}
    ${shopTile('biteArea','먹는 폭 강화','레벨에 따라 더 넓은 크래커를 갉아먹어','◈')}
    ${shopTile('moveSpeed','이동 속도','내 땅에서 더 빠르게 이동','➤')}
-   <h3>코인 모으기</h3><div class="info-card"><b>✦ 오늘의 탐험 선물 · +30 코인</b><br>하루 1회 무료로 받을 수 있어.<br><button type="button" class="home-action" data-home-action="daily-coin" ${dailyUsed()?'disabled':''}>${dailyUsed()?'오늘 수령 완료':'무료 30코인 받기'}</button></div>
+   <h3>코인 획득 규칙</h3>
+    <div class="info-card ww-home-coin-rules">
+      <b>🪙 큰 크래커를 떨어뜨리면 더 많은 코인!</b>
+      <div class="ww-coin-rules"><div><b>10~19칸</b><strong>+5</strong></div><div><b>20~29칸</b><strong>+12</strong></div><div><b>30~49칸</b><strong>+25</strong></div><div><b>50~99칸</b><strong>+45</strong></div><div><b>100칸 이상</b><strong>+80</strong></div></div>
+      <small>100칸부터 추가 50칸마다 +25코인</small>
+      <p>⭐ 맵에서 반짝이는 황금 코인 위치를 점령하면 <b>코인 1개당 +10</b>을 더 받아.</p>
+      <small>몬스터 포획 +22/마리 · 레벨업 +25 · 구역 해금 +75 · 맵 완료 +120</small>
+    </div>
+    <h3>코인 모으기</h3><div class="info-card"><b>✦ 오늘의 탐험 선물 · +30 코인</b><br>하루 1회 무료로 받을 수 있어.<br><button type="button" class="home-action" data-home-action="daily-coin" ${dailyUsed()?'disabled':''}>${dailyUsed()?'오늘 수령 완료':'무료 30코인 받기'}</button></div>
    <div class="info-card"><b>▶ 짧은 보상 광고 · 연동 예정</b><br>광고 완료 시에만 게임 코인을 지급할 예정이야. 현재는 광고 송출·보상이 연결되지 않았어.</div>
    <p class="notice">실제 결제와 광고는 작동하지 않아. 스킨은 구매 시 모든 맵에서 유지하는 별도 꾸미기 메뉴로 운영할 예정이야.</p>`;
   }else if(which==='expedition'){
