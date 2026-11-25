@@ -1,1 +1,60 @@
-)��z[-jװj�ޱ�Z~׫�v��+�$��(u��z-{��םE觊ؚ�,�ʋ��jh��/j��nW�jw[��,z�Z��^��^����
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>와구와구 · 애벌레 제작실</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f1e8;color:#293830;font:16px system-ui,sans-serif}main{max-width:980px;margin:auto;padding:clamp(16px,4vw,44px)}header,.bar,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}h1{margin:0;font-size:clamp(27px,4vw,43px);letter-spacing:-.06em}header p{margin:4px 0 20px;color:#53675a}figure{margin:0;background:#182e29;border-radius:20px;overflow:hidden;border:1px solid #334e40}canvas{display:block;width:100%}figcaption{display:flex;justify-content:space-between;padding:12px 20px;color:#f3edce;background:#263e34;font-weight:650}.controls{padding:20px 0}button,select{font:inherit;border:1px solid #bbc5b6;border-radius:10px;background:#fffef7;color:#293830;padding:9px 13px;cursor:pointer}button[aria-pressed=true],#play{background:#28563f;color:white}.actions{justify-content:flex-start;margin:14px 0 0;gap:6px}.actions button{font-size:14px}.bar{flex-wrap:nowrap}input{min-width:48px;flex:1;accent-color:#49795c}output{font-variant-numeric:tabular-nums;white-space:nowrap}small{color:#647469}@media(max-width:530px){main{padding:12px}.bar{gap:5px}button,select{padding:8px;font-size:14px}figcaption{font-size:14px}}
+</style><main><header><div><h1>와구와구 · 애벌레 제작실</h1><p>기본 진화 1단계 · 사선 시점</p></div></header><figure><canvas width="840" height="400" id="view" aria-label="애벌레 동작 검수 화면"></canvas><figcaption><span id="state"></span><span id="count"></span></figcaption></figure>
+<div class="controls"><div class="bar"><button id="play">일시정지</button><input id="scrub" aria-label="재생 위치" type="range" min="0" max="21" step=".01" value="0"><output id="clock"></output><select id="rate" aria-label="재생 속도"><option value="1">1배속</option><option value=".5">0.5배속</option><option value=".25">0.25배속</option></select></div><div class="actions"><button id="corner" aria-pressed="false">직각 경로 검수</button></div><div class="actions" id="chapters"></div><div class="actions"><button id="sound" aria-pressed="false">소리</button><button id="bite">한 입씩 확인</button><button id="zoom" aria-pressed="false">머리 확대</button></div></div></main>
+<script src="./work-larva-renderer.js"></script><script>
+const $=id=>document.getElementById(id),ctx=$('view').getContext('2d');
+const PI=Math.PI, clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),smooth=v=>{v=clamp(v);return v*v*(3-2*v)},mix=(a,b,u)=>a+(b-a)*u;
+const larva=createWorkLarva($('view'));
+const chapters=[['대기',0],['꼼틀 이동',1],['꼬리 고정 · 첫 입',3],['짧은 늘림',3.9],['중간 늘림',5.4],['여덟 입 먹기',6],['꿀꺽',12.4],['소화',13.04],['뿡!',15.7],['최대 길이 · 굽힘',18.9],['몸통 수축',19.4]];
+let time=0,playing=true,zoom=false,last=0;
+function ellipse(x,y,rx,ry,fill,stroke='',width=1,angle=0){
+ ctx.beginPath();ctx.ellipse(x,y,Math.max(.01,rx),Math.max(.01,ry),angle,0,PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.lineWidth=width;ctx.strokeStyle=stroke;ctx.stroke()}
+}
+function gradient(x,y,r,stops){let g=ctx.createRadialGradient(x,y,0,x,y,r);for(const [k,v] of stops)g.addColorStop(k,v);return g}
+const skin=(x,y,r)=>gradient(x-r*.28,y-r*.55,2*r,[[0,'#ffe0ad'],[.18,'#ff9a9d'],[.48,'#fa7888'],[.73,'#dc536d'],[.93,'#ffc389'],[1,'#a84c4f']]);
+const facePaint=(x,y,r)=>gradient(x-r*.19,y-r*.48,1.9*r,[[0,'#fff3cb'],[.47,'#ffd6a9'],[.82,'#ffab93'],[1,'#e97877']]);
+function bez(a,b,c,d,t){const q=1-t;return {x:q*q*q*a.x+3*q*q*t*b.x+3*q*t*t*c.x+t*t*t*d.x,y:q*q*q*a.y+3*q*q*t*b.y+3*q*t*t*c.y+t*t*t*d.y}}
+const pt=(x,y)=>({x,y});
+const knots=[[pt(782,211),pt(683,211),pt(638,211),pt(586,211)],[pt(586,211),pt(479,211),pt(455,107),pt(361,140)],[pt(361,140),pt(296,165),pt(360,250),pt(281,250)],[pt(281,250),pt(160,250),pt(107,333),pt(236,321)],[pt(236,321),pt(382,311),pt(529,305),pt(677,272)]];
+const cornerKnots=[[pt(782,211),pt(640,211),pt(440,211),pt(345,211)],[pt(345,211),pt(307,211),pt(295,198),pt(295,161)],[pt(295,161),pt(295,132),pt(295,110),pt(295,95)],[pt(295,95),pt(295,44),pt(345,46),pt(389,76)],[pt(389,76),pt(482,145),pt(572,270),pt(677,272)]];
+let road,length,corner=false;
+function setRoad(curves){road=[{...curves[0][0],s:0}];length=0;for(const curve of curves)for(let j=1;j<=90;j++){let p=bez(...curve,j/90),a=road.at(-1);length+=Math.hypot(p.x-a.x,p.y-a.y);road.push({...p,s:length})}}
+setRoad(knots);
+$('corner').onclick=()=>{corner=!corner;setRoad(corner?cornerKnots:knots);$('corner').setAttribute('aria-pressed',corner);time=11.8;setPlay(false);scene(time)};
+function path(s){s=clamp(s,0,length);let lo=0,hi=road.length-1;while(hi-lo>1){let m=(lo+hi)>>1;if(road[m].s<s)lo=m;else hi=m}let a=road[lo],b=road[hi],u=(s-a.s)/(b.s-a.s);return pt(mix(a.x,b.x,u),mix(a.y,b.y,u))}
+function distance(t){if(t<3)return 146+50*smooth((t-1)/2);if(t<6)return 196+172*smooth((t-3.35)/2.65);if(t<12.4){let q=(t-6)/.8;return 368+22*(Math.floor(q)+smooth((q%1)/.42))}return 544+(length-544)*smooth((t-16.4)/2.8)}
+function cracker(x,y,size,remain){ctx.save();ctx.translate(x,y);ctx.rotate(.18);ctx.scale(size,size);ctx.beginPath();ctx.roundRect(-8,-8,16,16,3);ctx.fillStyle='#e5a853';ctx.fill();ctx.strokeStyle='#a76838';ctx.stroke();for(let a of [-4,3])for(let b of [-4,3])ellipse(a,b,1,1,'#ab713a');ctx.restore()}
+function scene(t){
+ const s=distance(t),tail=t<3?s-146:t<19.2?50:mix(50,s-146,smooth((t-19.2)/1.8));
+ const span=s-tail,stretch=clamp((span-146)/270),biteQ=clamp((t-6)/.8,0,8),bites=t<3.14?0:Math.min(8,1+Math.floor(clamp((t-6.8)/.8,0,7)+.58));
+ const lift=Math.sin(PI*clamp((t-12.4)/.64)),full=bites/8*(1-smooth((t-12.53)/.40)),chew=t>=3&&t<3.35?Math.sin(PI*(t-3)/.35)**2:t>=6.8&&t<12.4?Math.sin(PI*(biteQ%1))**2*(.6+.4*Math.cos(4*PI*biteQ)):0;
+ const gut=(t-13.04)/2.66,gas=(t-15.7)/.7;
+ const wave=(v)=>3.2*Math.sin(t*7-v*8)*(1-stretch*.5)*(t<1?.18:1)*Math.min(1,v*8);
+ function center(v){const p=path(tail+span*v);p.y+=wave(v);return p}
+ const h=center(1),end=center(0),dir=path(s-.5).x>=h.x?1:-1;
+ ctx.clearRect(0,0,840,400);ctx.save();if(zoom){ctx.translate(420,205);ctx.scale(2.45,2.45);ctx.translate(-h.x,-h.y)}
+ const bg=ctx.createLinearGradient(0,45,0,410);bg.addColorStop(0,'#28473e');bg.addColorStop(1,'#173329');ctx.fillStyle=bg;ctx.fillRect(-900,-500,2700,1600);
+ ctx.fillStyle='#395340';ctx.beginPath();ctx.moveTo(615,0);ctx.bezierCurveTo(670,130,605,270,640,400);ctx.lineTo(900,400);ctx.lineTo(900,0);ctx.fill();
+ for(let j=0;j<7;j++)for(let i=0;i<13;i++){const xx=i*70+17*Math.sin(i+j),yy=j*66+12*Math.cos(2*i+j);ellipse(xx,yy,2.2,1.1,'#577255')}
+ if(t>=3&&t<19.2){ctx.strokeStyle='#b5d08c88';ctx.beginPath();ctx.ellipse(end.x,end.y+13,15,5,0,0,PI*2);ctx.stroke()}
+ for(let i=0;i<8;i++)if(i>=bites&&t>=2.8&&t<12.4){let p=path(i===0?196:368+(i+1)*22);cracker(p.x-19,p.y+3,.84,1)}
+ const line=Array.from({length:97},(_,i)=>center(i/96));
+ larva.draw({line,time:t,direction:dir,fullness:full,bite:chew,lift,boluses:[gut],gas});
+ if((t>=3&&t<3.35)||(t>=6.8&&t<12.4)){const phase=t<4?(t-3)/.35:biteQ%1;if(phase>.32&&phase<.8){let q=(phase-.32)/.48;for(let i=0;i<4;i++)ellipse(h.x-dir*(27+q*(9+i*2)),h.y+10-q*(10+i*2)+q*q*16,1.9*(1-q)+.5,1.4,'#edbb72')}}
+ if(gas>=0&&gas<1){ctx.save();ctx.globalAlpha=Math.sin(PI*gas);for(let i=0;i<4;i++)ellipse(end.x+gas*(35+9*i),end.y-5-gas*(i%2?19:7),5+gas*5,5+gas*4,'#c2cf81');ctx.fillStyle='#f9efaa';ctx.font='bold 18px system-ui';ctx.fillText('뿡!',end.x+25,end.y-20-gas*7);ctx.restore()}
+ ctx.restore();$('state').textContent=chapters.filter(x=>t>=x[1]).at(-1)[0];$('count').textContent='볼 채움 '+Math.round(full*8)+' / 8';$('clock').textContent=t.toFixed(1)+'초';$('scrub').value=t
+}
+function setPlay(p){playing=p;$('play').textContent=p?'일시정지':'재생'}
+for(const [name,t] of chapters){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{time=t;setPlay(true);scene(time)};$('chapters').append(b)}
+$('play').onclick=()=>setPlay(!playing);$('scrub').oninput=e=>{time=+e.target.value;setPlay(false);scene(time)};
+$('zoom').onclick=()=>{zoom=!zoom;$('zoom').setAttribute('aria-pressed',zoom);scene(time)};
+$('bite').onclick=()=>{const steps=[3.21,7.32,8.12,8.92,9.72,10.52,11.32,12.12];time=steps.find(v=>v>time+.01)??steps[0];setPlay(false);scene(time)};
+let audio=null,muted=true;
+$('sound').onclick=()=>{audio??=new AudioContext();audio.resume();muted=!muted;$('sound').setAttribute('aria-pressed',!muted)};
+function effect(hz,end,dur,type){
+ if(muted||!audio)return;const o=audio.createOscillator(),g=audio.createGain(),n=audio.currentTime;o.type=type;o.frequency.setValueAtTime(hz,n);o.frequency.exponentialRampToValueAtTime(end,n+dur);g.gain.setValueAtTime(.0001,n);g.gain.exponentialRampToValueAtTime(.052,n+.012);g.gain.exponentialRampToValueAtTime(.0001,n+dur);o.connect(g);g.connect(audio.destination);o.start(n);o.stop(n+dur);
+}
+function frame(now){const prior=time;if(playing)time=(time+Math.min(.08,(now-(last||now))/1000)*+$('rate').value)%21;if(playing){for(let i=0;i<8;i++){let e=i===0?3.14:6+(i+.42)*.8;if(prior<e&&time>=e)effect(510,135,.065,'triangle')}if(prior<12.65&&time>=12.65)effect(330,88,.18,'sine');if(prior<15.7&&time>=15.7)effect(122,43,.24,'sawtooth')}last=now;scene(time);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+</script></html>
