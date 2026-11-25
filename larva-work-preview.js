@@ -37,31 +37,77 @@
   // from the EXISTING anchored path but the OLD sprite/body is never painted.
   // Thus gameplay collision, capture and save stay identical.
   const SECTION_COUNT=8;
+  // Fixed anatomy: the caterpillar ALWAYS has its full resting-length body.
+  // Crossing the first edible cell only anchors the tail; it must not replace
+  // that body with the near-zero-length cutting path.
+  const BASE_BODY_PIXELS=90;
+  const BODY_SAMPLES=96;
   function centerline(){
-    const stretched=bodyLine.length>1&&bodyTotal>.08;
-    if(stretched||bodyJoin){
-      const original=bodyVisualLine();
-      if(original&&original.length>2)return {pts:original,stretched:true,fade:bodyJoin?Math.min(1,Math.max(0,bodyJoin.life/bodyJoin.total)):1};
+    if(!player)return null;
+    const p=mapPosition(),baseLength=BASE_BODY_PIXELS*larvaLevelSize();
+    const worldPath=bodyLine.length>0&&bodyAnchor&&bodyTotal>=0;
+    const from=worldPath&&bodyLine.length>1
+      ?bodyLine.map(v=>({x:v.x*T,y:v.y*T}))
+      :[];
+    const heading=Number.isFinite(player.turnAngle)
+      ?player.turnAngle:Math.atan2(player.dirY,player.dirX);
+    let ux=Math.cos(heading),uy=Math.sin(heading);
+    if(from.length>1){
+      const first=from[0];
+      for(let i=1;i<from.length;i++){
+        const dx=from[i].x-first.x,dy=from[i].y-first.y,len=Math.hypot(dx,dy);
+        if(len>2){ux=dx/len;uy=dy/len;break;}
+      }
     }
-    const p=mapPosition(),levelScale=larvaLevelSize();
-    const heading=Number.isFinite(player.turnAngle)?player.turnAngle:Math.atan2(player.dirY,player.dirX);
-    const dx=Math.cos(heading),dy=Math.sin(heading),nx=-dy,ny=dx;
-    const length=90*levelScale,wave=player.walkCycle||0;
-    const pts=[];
-    for(let i=0;i<=64;i++){
-      const u=i/64;
-      const bend=Math.sin(u*16-wave*5.8)*Math.sin(u*Math.PI)*2.0;
-      pts.push({x:p.x-dx*length*(1-u)+nx*bend,y:p.y-dy*length*(1-u)+ny*bend,u,nx,ny});
+    // When a bite begins, the tail's actual resting-length tip is behind the
+    // start anchor. Keep this extra length even while the live cut grows.
+    const anchor=worldPath
+      ?{x:bodyAnchor.x*T,y:bodyAnchor.y*T}
+      :{x:p.x,y:p.y};
+    const start={x:anchor.x-ux*baseLength,y:anchor.y-uy*baseLength};
+    const poly=[start,anchor];
+    if(worldPath&&from.length>1){
+      for(let i=1;i<from.length;i++){
+        const q=from[i],last=poly[poly.length-1];
+        if(Math.hypot(q.x-last.x,q.y-last.y)>.12)poly.push(q);
+      }
+      // The visual head must be attached to the actual render position.
+      const tip=poly[poly.length-1];
+      if(Math.hypot(p.x-tip.x,p.y-tip.y)>.3)poly.push({x:p.x,y:p.y});
     }
-    return {pts,stretched:false,fade:1};
+    const lengths=[0];
+    for(let i=1;i<poly.length;i++)
+      lengths.push(lengths[i-1]+Math.hypot(poly[i].x-poly[i-1].x,poly[i].y-poly[i-1].y));
+    const total=lengths[lengths.length-1];
+    if(total<1)return null;
+    const pts=[];let seg=1;
+    const wave=player.walkCycle||0;
+    for(let i=0;i<=BODY_SAMPLES;i++){
+      const u=i/BODY_SAMPLES,d=u*total;
+      while(seg<poly.length-1&&lengths[seg]<d)seg++;
+      const prev=poly[seg-1],next=poly[seg],span=lengths[seg]-lengths[seg-1];
+      const k=span>0?Math.min(1,Math.max(0,(d-lengths[seg-1])/span)):0;
+      let x=prev.x+(next.x-prev.x)*k,y=prev.y+(next.y-prev.y)*k;
+      // Tiny gait ripple, pinned to zero at both ends to prevent disconnects.
+      const move=Math.sin(wave*6.1-u*20)*Math.sin(u*Math.PI)*1.25;
+      const tx=next.x-prev.x,ty=next.y-prev.y,tl=Math.hypot(tx,ty)||1;
+      x+=(-ty/tl)*move;y+=(tx/tl)*move;
+      pts.push({x,y,u});
+    }
+    for(let i=0;i<pts.length;i++){
+      const q0=pts[Math.max(0,i-1)],q1=pts[Math.min(pts.length-1,i+1)];
+      const dx=q1.x-q0.x,dy=q1.y-q0.y,n=Math.hypot(dx,dy)||1;
+      pts[i].nx=-dy/n;pts[i].ny=dx/n;
+    }
+    return {pts,stretched:worldPath,fade:1,length:total,baseLength,extension:Math.max(0,total-baseLength)};
   }
   function wormBody(){
     if(!player)return;
     const data=centerline();if(!data)return;
     const pts=data.pts,stage=larvaLevelSize();
     const radius=u=>{
-      const tail=4.8*stage,neck=23.0*stage;
-      const taper=tail+(neck-tail)*Math.pow(u,.78);
+      const tail=10.4*stage,neck=23.0*stage;
+      const taper=tail+(neck-tail)*Math.pow(u,.68);
       // Exactly eight permanent physical modules with a soft breathing profile.
       const muscle=1+.033*Math.cos(u*SECTION_COUNT*Math.PI*2-(player.walkCycle||0)*.42)*Math.sin(Math.PI*u);
       let r=taper*muscle;
@@ -146,7 +192,7 @@
     const headingRotation=heading-Math.PI/2;
     const progress=gulp?Math.min(1,Math.max(0,1-digest/.64)):0;
     const lift=gulp?Math.sin(progress*Math.PI)*8:0;
-    const sz=(extended?74:79)*levelScale;
+    const sz=79*levelScale;
     const scale=sz/216;
     const cycle=player.walkCycle||0;
     const wobble=Math.sin(cycle*6)*1.2;
@@ -190,6 +236,6 @@
     }
     ctx.restore();
   }
-  window.landTopWorm={...native,body:wormBody,player:previewPlayer,revision:'v0.2.29-full-work-larva'};
+  window.landTopWorm={...native,body:wormBody,player:previewPlayer,revision:'v0.2.30-continuous-base-length'};
   window.WAGU_LARVA_PREVIEW={active:true,source:prefix,artReady:()=>Object.values(pieces).every(im=>im.complete&&im.naturalWidth>0),renderer:'Work head and complete 8-section rendered body, existing collision/path data'};
 })();
