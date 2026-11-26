@@ -314,3 +314,6 @@
 @keyframes radCardReturn{from{transform:translateY(0) scale(1);opacity:1}to{transform:translateY(27%) rotateY(-32deg) scale(.42);opacity:0}}
 @keyframes radViewerOut{from{opacity:1}to{opacity:0}}
 @media(prefers-reduced-motion:reduce){.arc-view-card,.arc-returning .arc-view-card,.arc-viewer.arc-returning{animation:none}}
+
+/* v039 card-focused proportions */
+.arc-amara-front{padding:0!important;border:0!important;background:#122c4a!important;display:block}.arc-amara-front>svg{width:100%;height:100%;display:block}.arc-view-card{width:min(94%,calc((100dvh - 94px)*.666667),520px);aspect-ratio:2/3}.arc-view-card .arc-amara-front{border:0;box-shadow:none}.arc-radial-wheel .arc-gallery-halo{width:86%;opacity:.6}.arc-theme-ug{--arc-bg-a:#3c4d48;--arc-bg-b:#142e3c;--arc-bg-c:#091a28}
