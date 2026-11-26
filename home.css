@@ -158,7 +158,7 @@
 .arc-disc{position:absolute;inset:0 0 24%;border-radius:50%;background:radial-gradient(ellipse at 50% 32%,#466b62,#203d3f 67%,#0c2529);border:2px solid var(--arc-metal);box-shadow:inset 0 0 0 5px #172c2e,inset 0 0 0 6px #d0bb8255,0 4px 6px #0009;display:grid;place-items:center;color:var(--arc-metal)}
 .arc-disc svg{width:84px;height:46px;opacity:.35;transform:scaleY(.6)}
 .arc-disc-rim{position:absolute;inset:11% 7%;border:1px solid #e9d5a339;border-radius:50%}
-.arc-orbit{position:absolute;inset:0;pointer-events:none}
+.arc-orbit{position:absolute;inset:0;pointer-events:none;transform-style:preserve-3d}
 .arc-slot{position:absolute;left:50%;top:76%;width:0;height:0;transform-style:preserve-3d;pointer-events:auto;outline:none}
 .arc-groove{position:absolute;left:calc(var(--arc-card-w)*-.45);width:calc(var(--arc-card-w)*.9);height:13px;bottom:-5px;transform:rotateX(63deg);background:linear-gradient(180deg,#09191e,#1c3637 42%,#0d2025);border:2px solid #b7ae7c91;border-radius:5px;box-shadow:0 3px 5px #0009}
 .arc-groove i{position:absolute;inset:3px 8px;background:#030d12;border-radius:2px;border-top:1px solid #9a9e7755}
@@ -195,9 +195,9 @@
 .arc-viewer[hidden]{display:none!important}
 .arc-viewer{position:absolute;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#365452,#12292e 65%,#091d23);perspective:1000px;animation:arcReveal .28s ease-out both;touch-action:none}
 .arc-view-close{position:absolute;top:9px;right:8px;width:40px;height:40px;border-radius:50%;z-index:10;border:1px solid #d6c18c70;background:#142b30;color:#f5e4bd;font-size:25px}
-.arc-view-card{display:block;position:relative;border:0;background:none;padding:0;width:min(86%,calc((100dvh - 108px)*.685),420px);aspect-ratio:2.5/3.65;perspective:1200px;outline:none;cursor:pointer}
+.arc-view-card{display:block;position:relative;border:0;background:none;padding:0;width:min(86%,calc((100dvh - 108px)*.685),420px);aspect-ratio:2.5/3.65;perspective:1200px;outline:none;cursor:pointer;animation:arcCardIn .46s cubic-bezier(.14,.72,.27,1) both}
 .arc-view-object{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .48s cubic-bezier(.2,.7,.2,1);animation:arcCardIn .46s cubic-bezier(.14,.72,.27,1) both}
-.arc-flipped .arc-view-object{animation:none;transform:rotateY(180deg)}
+.arc-flipped .arc-view-object{transform:rotateY(180deg)}
 .arc-view-card .arc-card-face{box-shadow:0 14px 17px #0008;border-width:3px;border-radius:16px;padding:10px}
 .arc-view-card .arc-photo{border-radius:9px 9px 2px 2px}
 .arc-view-card .arc-card-caption strong{font-size:clamp(23px,6.2vw,34px)}
@@ -213,4 +213,4 @@
 .arc-empty-emblem{color:#aeaa83;width:145px;opacity:.65}
 .arc-explore{border:1px solid #d7bc8677;border-radius:12px;background:#294743;color:#f3dfb1;padding:12px 19px}
 @media(max-height:570px){.arc-root{--arc-card-w:clamp(84px,29vw,125px)}.arc-pedestal{height:65px}.arc-page-bottom{min-height:48px;padding:2px 5px}.arc-name strong{font-size:16px}.arc-engraving span{font-size:9px}.arc-view-card{width:min(83%,calc((100dvh - 85px)*.685),420px)}}
-@media(prefers-reduced-motion:reduce){.arc-view-object,.arc-viewer,.arc-engraving span{animation:none}.arc-view-object{transition:none}}
+@media(prefers-reduced-motion:reduce){.arc-view-card,.arc-viewer,.arc-engraving span{animation:none}.arc-view-object{transition:none}}
