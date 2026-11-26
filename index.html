@@ -77,7 +77,7 @@
     </header>
     <div class="home-title"><div class="home-kicker">CHEW & CLAIM</div><h1>와구 <em>와구</em></h1><p>WAGU WAGU</p></div>
     <div class="home-showcase" id="homeShowcase"><div class="home-halo"></div><div class="home-ground"></div>
-      <div class="home-model-wrap"><canvas id="homeModelCanvas" aria-label="게임 속 2D 애벌레. 좌우로 밀어 방향을 바꿔보세요" role="img"></canvas>
+      <div class="home-model-wrap"><canvas id="homeModelCanvas" aria-label="사선 측면 2D 애벌레. 좌우로 밀어 회전하세요" role="img"></canvas>
         <div id="homeFallback" hidden><img src="assets/worm_expressions.png" alt="꼬물이 확정 캐릭터 원본"></div></div>
       <div class="home-identity">✦ <b>애벌레</b><i></i><span>첫 번째 애벌레</span></div><div class="home-drag-tip">‹ 좌우로 밀어 방향 바꾸기 ›</div>
     </div>
@@ -208,6 +208,15 @@ let biteCharge=0,biteTarget=-1;
 // One short button tap is one complete bite, even if the thumb leaves the
 // action button before the character reaches the next crumb of cracker.
 let tapGrace=null,tapFollow=null,biteMotion=null,actionPressedAt=0,actionStartFull=0;
+// Transient own-land tap acceleration. Never persisted; outside/CUT is normal speed.
+let runTapPower=0,runTapAt=-99,runApplied=1,runWave=0,runDustAt=-99,keyActionAt=-99,keyActionFull=0;
+function onOwnLand(){return !testMode&&!!player&&!!world&&world[at(player.x,player.y)]===OWN&&!trail.length;}
+function clearRunBoost(){runTapPower=0;runTapAt=-99;runApplied=1;}
+function boostAmount(){const age=clock-runTapAt;return age<=.26?runTapPower:runTapPower*clamp(1-(age-.26)/.46,0,1);}
+function registerRunTap(){if(modal||!playStarted||digest>0||recoil||!onOwnLand())return false;runTapPower=Math.min(.30,boostAmount()+.15);runTapAt=clock;return true;}
+function canQueueBite(d){if(!player||testMode||!d)return false;if(!onOwnLand())return true;const x=player.x+(Math.abs(d[0])>.35?Math.sign(d[0]):0),y=player.y+(Math.abs(d[1])>.35?Math.sign(d[1]):0);return inside(x,y)&&zoneAllowed(x+.5,y+.5)&&world[at(x,y)]===FREE;}
+function boostForStep(ux,uy,dt,base){if(!onOwnLand())return 1;const f=1+boostAmount();const step=Math.min(.12*f,dt*base*f),x=Math.floor(clamp(player.wx+ux*step,.006,CW-.006)),y=Math.floor(clamp(player.wy+uy*step,.006,CH-.006));return inside(x,y)&&world[at(x,y)]===OWN?f:1;}
+function updateRunDust(dt,f){runApplied=f;if(f<=1.001)return;runWave+=dt*9.8*(f-1);if(clock-runDustAt<.09)return;runDustAt=clock;const p=mapPosition(),dx=player.dirX||0,dy=player.dirY||0;for(let j=0;j<2;j++)particles.push({x:p.x-dx*94*larvaLevelSize()-dy*rand(-8,8),y:p.y-dy*94*larvaLevelSize()+dx*rand(-8,8),vx:-dx*rand(14,25),vy:-dy*rand(14,25)-9,ttl:rand(.14,.24),rad:rand(1.1,2.5),col:'#e8ddbc'});}
 const biteVisual=()=>{
   if(!biteMotion)return 0;
   const u=clamp((clock-biteMotion.start)/biteMotion.duration,0,1);
@@ -223,7 +232,7 @@ const startBiteVisual=(duration=.68)=>{biteMotion={start:clock,duration}};
 // maintained in continuous grid coordinates, independent of old tile ownership.
 let bodyLine=[],bodyAnchor=null,bodyTotal=0,recoil=null,gutBoluses=[],gasPuffs=[],fartCount=0,bodyJoin=null;
 const bodyMax=()=>15+(state.level-1)*2+(state.upgrades.length||0)*3;
-const resetBody=()=>{bodyLine=[];bodyAnchor=null;bodyTotal=0;recoil=null;bodyJoin=null;tapGrace=null;tapFollow=null;biteMotion=null;};
+const resetBody=()=>{clearRunBoost();bodyLine=[];bodyAnchor=null;bodyTotal=0;recoil=null;bodyJoin=null;tapGrace=null;tapFollow=null;biteMotion=null;};
 const lineLen=a=>{let n=0;for(let i=1;i<a.length;i++)n+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y);return n;};
 const pointOnLine=(arr,len)=>{
   if(!arr.length)return null;
@@ -604,8 +613,9 @@ function moveAnalog(dir,dt){
   // Outside: creep through each edible cell instead of sprinting to its edge
   // and visibly freezing for most of a second. Total time per cell stays slow.
   const walkBase=from===OWN?3.25+Math.min(2.5,(state.level-1)*.028+(state.upgrades.moveSpeed||0)*.48):Math.min(4.5,1.22+(state.level-1)*.055+(state.upgrades.speed||0)*.12);
-  const speed=(testMode?Math.max(3.8,walkBase):walkBase)*(testMode&&webSlow>0?.55:1);
-  const stride=Math.min(.12,dt*speed);
+  const factor=boostForStep(ux,uy,dt,walkBase);
+  const speed=walkBase*factor;
+  const stride=Math.min(.12*factor,dt*speed);
   let nx=clamp(player.wx+ux*stride,.006,CW-.006),ny=clamp(player.wy+uy*stride,.006,CH-.006);
   const tx=Math.floor(nx),ty=Math.floor(ny);
    if(!inside(tx,ty))return false;
@@ -661,6 +671,7 @@ function moveAnalog(dir,dt){
   if(digest>0){player.phase=1;player.walkCycle=0}
   else player.phase=(player.walkCycle%1)*.98;
   lastMoveClock=clock;
+  if(onOwnLand())updateRunDust(dt,factor);else clearRunBoost();
   window.wwSfx?.('crawl');
   return true;
 }
@@ -877,7 +888,7 @@ if(trail.length){for(const e of enemy){if(e.zone>state.unlockedZone)continue;
     loseLife('몬스터가 애벌레 몸을 건드렸어');return;
   }
 }}}
-function advance(dt){clock+=dt;webSlow=Math.max(0,webSlow-dt);labAttackMessage=Math.max(0,labAttackMessage-dt);updateGut(dt);for(const p of coinFlights)p.age+=dt;coinFlights=coinFlights.filter(p=>p.age<p.duration);
+function advance(dt){clock+=dt;runApplied=1;if(!playStarted||modal||zoneTransition||digest>0||recoil||!onOwnLand())clearRunBoost();webSlow=Math.max(0,webSlow-dt);labAttackMessage=Math.max(0,labAttackMessage-dt);updateGut(dt);for(const p of coinFlights)p.age+=dt;coinFlights=coinFlights.filter(p=>p.age<p.duration);
  if(completionReveal){completionReveal.elapsed+=dt;if(completionReveal.elapsed>=completionReveal.duration){completionReveal=null;showPanel('complete')}return}
  if(zoneTransition){zoneTransition.elapsed+=dt;if(zoneTransition.elapsed>=zoneTransition.duration)zoneTransition=null;}
 if(bodyJoin){bodyJoin.life-=dt;if(bodyJoin.life<=0)bodyJoin=null;}if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('tip').classList.remove('show')}if(!playStarted||modal||zoneTransition)return;
@@ -1875,16 +1886,16 @@ $('saveBtn').addEventListener('click',saveAndExit);
 const joy=$('joy'),knob=$('knob'),act=$('act');let joyPointer=null,actionPointer=null;
 function moveJoy(ev){const r=joy.getBoundingClientRect(),centerX=r.left+r.width/2,centerY=r.top+r.height/2;let dx=(ev.clientX-centerX)/(r.width*.32),dy=(ev.clientY-centerY)/(r.height*.32),mag=Math.hypot(dx,dy);if(mag>1){dx/=mag;dy/=mag}controls={x:dx,y:dy};knob.style.transform=`translate(${(dx*r.width*.29).toFixed(1)}px,${(dy*r.height*.29).toFixed(1)}px)`}
 joy.addEventListener('pointerdown',e=>{if(modal)return;manualCameraZoom=null;autoOn=false;autoPath=[];joyPointer=e.pointerId;joy.setPointerCapture(e.pointerId);moveJoy(e);e.preventDefault()});joy.addEventListener('pointermove',e=>{if(e.pointerId===joyPointer){moveJoy(e);e.preventDefault()}});function endJoy(e){if(e.pointerId!==joyPointer)return;joyPointer=null;controls={x:0,y:0};knob.style.transform='translate(0,0)'}for(const name of ['pointerup','pointercancel','lostpointercapture'])joy.addEventListener(name,endJoy);
-act.addEventListener('pointerdown',e=>{if(modal||digest>0||recoil)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);actionPressedAt=clock;actionStartFull=state.fullness;held=true;startBiteVisual(.68);act.classList.add('held');e.preventDefault()});
+act.addEventListener('pointerdown',e=>{if(modal||digest>0||recoil)return;autoOn=false;autoPath=[];actionPointer=e.pointerId;act.setPointerCapture(e.pointerId);actionPressedAt=clock;actionStartFull=state.fullness;held=true;const running=registerRunTap();if(!running||canQueueBite(direction()||[Math.cos(player.turnAngle||0),Math.sin(player.turnAngle||0)]))startBiteVisual(.68);act.classList.add('held');e.preventDefault()});
 function endAct(e){if(e.pointerId!==actionPointer)return;actionPointer=null;held=false;act.classList.remove('held');
   // A quick tap completes one full bite from the current direction. Holding
   // still supports continuous chewing while steering with the joystick.
   if(e.type==='pointerup'&&clock-actionPressedAt<.34&&state.fullness===actionStartFull&&digest<=0&&!recoil&&!modal){
     const d=direction()||[Math.cos(player.turnAngle||0),Math.sin(player.turnAngle||0)];
-    tapGrace={dir:[...d],until:clock+1.22,fullness:state.fullness};
+    if(canQueueBite(d))tapGrace={dir:[...d],until:clock+1.22,fullness:state.fullness};
   }
 }for(const name of ['pointerup','pointercancel','lostpointercapture'])act.addEventListener(name,endAct);
-window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();pressed[e.code]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code))manualCameraZoom=null;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{pressed[e.code]=false});window.addEventListener('blur',()=>{controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
+window.addEventListener('keydown',e=>{if(['Space','Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){e.preventDefault();if((e.code==='Space'||e.code==='Enter')&&!pressed[e.code]&&!e.repeat){keyActionAt=clock;keyActionFull=state?.fullness||0;registerRunTap();}pressed[e.code]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code))manualCameraZoom=null;autoOn=false;autoPath=[]}});window.addEventListener('keyup',e=>{const was=pressed[e.code];pressed[e.code]=false;if(was&&(e.code==='Space'||e.code==='Enter')&&!pressed.Space&&!pressed.Enter&&playStarted&&!modal&&digest<=0&&!recoil&&clock-keyActionAt<.34&&state.fullness===keyActionFull){const d=direction()||[Math.cos(player.turnAngle||0),Math.sin(player.turnAngle||0)];if(canQueueBite(d))tapGrace={dir:[...d],until:clock+1.22,fullness:state.fullness};}});window.addEventListener('blur',()=>{clearRunBoost();controls={x:0,y:0};pressed={};held=false;act.classList.remove('held');save()});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('beforeunload',save);
 window.__growthTest={biteWidth,xpLimit,skinTone,reviveCurrentMap,upgradePrice};
 window.__mapRuleTest={components,sealTrail,getReveal:()=>completionReveal,softReady:()=>softPhotoReady};
 window.__gameTest={snapshot:()=>({monsterSizes:enemy.map(e=>({type:e.type,zone:e.zone,renderRadius:monsterRadius(e),hitRadius:monsterHitRadius(e)})),playerGrowth:larvaLevelSize(),zone:state.unlockedZone,zonePct:zoneProgress(),zoneGoal:zoneTarget(),zones:HABITATS.map((z,i)=>({zone:i+1,area:(z.x1-z.x0)*(z.y1-z.y0),progress:zoneProgress(i+1)})),worldCells:CW*CH,transition:zoneTransition?zoneTransition.elapsed:null,x:player.x,y:player.y,wx:player.wx,wy:player.wy,angle:player.turnAngle,pct:Number(capture().toFixed(2)),trail:trail.length,fullness:state.fullness,digest,falling:fallPieces.length,coins:state.coins,level:state.level,hearts:state.hearts,stage:state.stage,album:state.album,modal,enemy:enemy.length,autoOn,dirX:player.dirX,dirY:player.dirY,pose:avatarPose,phase:player.phase,bites:biteMarks.length,bodyLength:bodyTotal,maxBody:bodyMax(),bodyPoints:bodyLine.length,recoiling:!!recoil,boluses:gutBoluses.map(g=>({time:g.time,duration:g.duration})),gas:gasPuffs.length,farts:fartCount,jaw:Number(biteVisual().toFixed(3)),tapQueued:!!tapGrace,tapFollowing:!!tapFollow}),step:(dx,dy,action)=>{const old=held;held=action;const ok=nudgePlayer(dx,dy);analogCenter();if(ok&&bodyLine.length){traceBody(player.wx,player.wy);if(bodyTotal>=bodyMax()&&trail.length)startRecoil();}held=old;return ok},setAnalog:(x,y,action)=>{controls={x,y};held=action},tickAnalog:(x,y,action,dt=.02)=>{const old=held;held=action;const ok=moveAnalog([x,y],dt);held=old;return ok},skipDigest:()=>{digest=0;state.fullness=0},skipFall:()=>{if(fallPieces.length){for(const id of fallPieces)world[id]=OWN;markSlabDirty();scoreArea(fallPieces,captureAfterFall);fallPieces=[];fallTimer=0;updateHUD();save()}},setEnemy:(enemies)=>{enemy=enemies},forceFinish:()=>{finishStage()},reset:()=>{transientFinish=false;newWorld();closePanel()},auto:demo,advance:(dt=.02)=>advance(dt),getBody:()=>({anchor:bodyAnchor,line:bodyLine,recoil}),triggerRecoil:()=>startRecoil(),getGas:()=>gasPuffs,unlock:()=>unlockHabitat(),setZone:(n)=>{state.unlockedZone=clamp(n,1,3);zoneTransition=null;updateHUD()},setAreaComplete:(n=state.unlockedZone)=>{const z=HABITATS[n-1];for(let y=z.y0;y<z.y1;y++)for(let x=z.x0;x<z.x1;x++)world[at(x,y)]=OWN;markSlabDirty();updateHUD()},getWorld:()=>world,zoneOf};
@@ -2170,7 +2181,7 @@ init();
     const estimated=sample(path,Math.min(110,Math.max(35,Math.ceil(Math.max(baseLen,rawLength)/4))));
     if(!estimated)return null;
     const pts=estimated.points,moving=crawling();
-    const phase=clock*(moving?9.8:1.5),thin=1-.22*clip((estimated.len-baseLen)/(bodyMax()*T*.78),0,1);
+    const phase=clock*(moving?9.8:1.5)+runWave,thin=1-.22*clip((estimated.len-baseLen)/(bodyMax()*T*.78),0,1);
     const sway=moving?4.7:.42,roll=moving?.107:.012;
     // Smooth turns before adding the muscular travelling wave. Keep head and tail fixed.
     const old=pts.map(q=>({...q}));
@@ -2207,6 +2218,8 @@ init();
     const data=build();if(!data)return;
     const {pts}=data,c=ctx,first=pts[0],last=pts[pts.length-1];
     c.save();c.lineJoin='round';c.lineCap='round';
+    // Brief, alternating little feet visible only while sprinting on owned land.
+    if(data.moving&&runApplied>1.02){for(let j=1;j<=4;j++){const q=pts[Math.round(j/5*(pts.length-1))],r=q.r;for(const side of [-1,1]){const wave=Math.sin(clock*22+runWave*2+j*1.3+side*Math.PI),tx=q.ny,ty=-q.nx; c.beginPath();c.moveTo(q.x+q.nx*side*r*.76,q.y+q.ny*side*r*.76);c.quadraticCurveTo(q.x+q.nx*side*(r+4)+tx*wave*4,q.y+q.ny*side*(r+4)+ty*wave*4,q.x+q.nx*side*(r+5)+tx*wave*6,q.y+q.ny*side*(r+5)+ty*wave*6);c.strokeStyle=skinTone('dark');c.lineWidth=3.8;c.stroke();}}}
     // Underpaint the centerline with overlapping skin capsules. Prevents ANY
     // transparent interior slots at acute turns or when the head is moving.
     c.fillStyle=skinTone('base');c.strokeStyle=skinTone('base');
@@ -2291,7 +2304,7 @@ init();
 })();
 
 </script>
-<script src="./ww-ui.js?v=041"></script><script src="./home3d.js?v=043"></script>
-<script src="./home.js?v=043"></script>
+<script src="./ww-ui.js?v=044"></script><script src="./home3d.js?v=044"></script>
+<script src="./home.js?v=044"></script>
 <script>if ('serviceWorker' in navigator && location.protocol==='https:') {window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </body></html>
