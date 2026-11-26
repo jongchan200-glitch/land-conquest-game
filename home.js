@@ -1,34 +1,20 @@
-/* Home lobby V0.2.8. The existing game world, rules, saves and shop remain authoritative.
+/* Home lobby — current collection and navigation. The existing game world, rules, saves and shop remain authoritative.
    Layout/menu order deliberately mirrors hell-drop V0.7. */
 (function(){
  'use strict';
  const home=document.getElementById('landHome'),drawer=document.getElementById('homeDrawer'),content=document.getElementById('homeDrawerBody'),title=document.getElementById('homeDrawerTitle');
  if(!home)return;
  const recordsKey='land-conquest-home-records-v1',previewKey='land-conquest-home-badge-preview-v1';
- let best=0,selectedPanel='',albumIndex=0,albumView='roster',selectedCard=1;
- const previews=[
-  {sheet:'./assets/cards/haena-8-preview.png',size:[1536,1024],rects:Array.from({length:8},(_,i)=>[(i%4)*384,i<4?0:385,384,383]),status:'구도·디자인 시안 / 얼굴 통일 미검수'},
-  {sheet:'./assets/cards/anika-8-preview.png',size:[1199,1312],rects:Array.from({length:8},(_,i)=>[30+(i%4)*283,i<4?528:868,279,i<4?333:390]),status:'01번 대표 얼굴만 확정 / 나머지 시안'},
-  {sheet:'./assets/cards/amara-8-preview.png',size:[1502,1058],rects:Array.from({length:8},(_,i)=>[23+(i%4)*357,i<4?23:521,342,426]),status:'8장 후보 사진 / 대표 얼굴 미확정'}
- ];
+ let best=0,selectedPanel='';
  const amara={id:'CHAR_003',name:'아마라',english:'AMARA',country:'우간다 · 가상 설정',age:16,
    topics:['우간다 · 16세 · 학생','취미: 동화책 읽기·텃밭','명랑함 · 친화력','화목한 가족','요리 · 요리 메모','책임감 · 봉사','부탁을 거절하기 어려움','동네 식당 겸 공부방']};
  const roster=Array.from({length:8},(_,i)=>{
    const ch=characters[i]||(i===2?amara:null)||{id:'CHAR_'+String(i+1).padStart(3,'0'),name:'미공개 인물 '+String(i+1).padStart(2,'0'),english:'COMING SOON',country:'새로운 이야기',topics:Array.from({length:8},(_,j)=>j===7?'스페셜 카드':'이야기 '+(j+1))};
-   return previews[i]?{...ch,previewSheet:previews[i].sheet,previewSize:previews[i].size,previewRects:previews[i].rects,previewStatus:previews[i].status}:ch;
+   return ch;
  });
- let showPreview=true; // Visual QA only; never mutate state.album or reveal reward rarity.
- const canPreview=ch=>showPreview&&!!ch?.previewSheet;
- function previewArt(ch,k){
-  if(!canPreview(ch))return '';
-  const [x,y,w,h]=ch.previewRects[k-1]||ch.previewRects[0], [W,H]=ch.previewSize;
-  return '<span class="ww-card-crop" style="--ww-r:'+w+'/'+h+'" aria-label="'+ch.name+' '+k+'번 시안"><img loading="lazy" src="'+ch.previewSheet+'" alt="" style="left:'+(-x/w*100)+'%;top:'+(-y/h*100)+'%;width:'+(W/w*100)+'%;height:'+(H/h*100)+'%"></span>';
- }
-
  const ownedAt=(i,k)=>!!state.album[roster[i].id+'_'+String(k).padStart(2,'0')];
  const ownedCount=i=>Array.from({length:8},(_,k)=>ownedAt(i,k+1)).filter(Boolean).length;
  const totalOwned=()=>roster.reduce((a,_,i)=>a+ownedCount(i),0);
- const pctCards=i=>Math.round(ownedCount(i)/8*100);
  const dailyKey='land-conquest-daily-v1';
  const dayId=()=>new Date().toLocaleDateString('en-CA');
  const dailyUsed=()=>{try{return localStorage.getItem(dailyKey)===dayId()}catch(e){return true}};
@@ -91,7 +77,6 @@
  const arcEscape=x=>String(x??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
  function arcArt(ch,k){
   if(k===1&&ch.image)return '<img class="arc-original" draggable="false" src="'+ch.image+'" alt="'+arcEscape(ch.name)+'">';
-  if(ch.previewSheet)return previewArt(ch,k).replace('loading="lazy"','loading="eager" draggable="false"');
   return '<span class="arc-art-missing">✦</span>';
  }
  function arcMark(theme){
@@ -132,13 +117,12 @@
   const p=(r,h=0,t=0)=>[cx+scale*(sn*r+cs*t),cy+scale*((cs*r-sn*t)*RAD.sin-h*RAD.cos)];
   return {sn,cs,p,front:sn<0,depth:cs};
  };
- function arcOldSvgArt(i,k){
-  const ch=roster[i],r=ch.previewRects?.[k-1],size=ch.previewSize;
+ function arcFallbackSvgArt(i,k){
+  const ch=roster[i];
   if(k===1&&ch.image)return '<image href="'+arcEscape(ch.image)+'" x="0" y="0" width="62" height="112" preserveAspectRatio="xMidYMid meet"/>';
-  if(ch.previewSheet&&r&&size)return '<svg x="0" y="0" width="62" height="112" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid meet" overflow="hidden"><image href="'+arcEscape(ch.previewSheet)+'" x="0" y="0" width="'+size[0]+'" height="'+size[1]+'"/></svg>';
   return '<path d="M31 36L45 56 31 76 17 56Z" fill="none" stroke="#cfc49d" stroke-width=".8"/>';
  }
- function arcSvgArt(i,k){const path=cardFrontPath(i,k);return path?'<image href="'+path+'" width="62" height="112" preserveAspectRatio="none"/>':arcOldSvgArt(i,k)}
+ function arcSvgArt(i,k){const path=cardFrontPath(i,k);return path?'<image href="'+path+'" width="62" height="112" preserveAspectRatio="none"/>':arcFallbackSvgArt(i,k)}
  function arcSvgBack(i,k){const path=cardBackPath(i,k);return path?'<image href="'+path+'" width="62" height="112" preserveAspectRatio="none"/>':'<rect width="62" height="112" fill="#193448"/>'}
  function arcRadialHTML(i,theme){
   let grooves='',cards='';
@@ -147,7 +131,7 @@
    grooves+='<g data-rad-groove="'+k+'" data-arc-slot="'+k+'" class="arc-radial-hit" role="img" aria-label="'+(gold?'골드 전용 슬롯':'카드 슬롯')+'"><polygon class="rad-groove-rim" fill="'+(gold?'url(#radGold)':theme==='ug'?'#a17b4e':'#98aaa6')+'" stroke="'+(gold?'#ffedbe':theme==='ug'?'#dab57b':'#d1d8c9')+'" stroke-width=".6"/><polygon class="rad-groove-hole" fill="#09161b" stroke="#172529" stroke-width=".6"/></g>';
    if(held)cards+='<g data-rad-card="'+k+'" data-arc-slot="'+k+'" data-rad-owned="1" class="arc-radial-hit" role="button" tabindex="0" aria-label="'+arcEscape(roster[i].name+' '+(gold?'골드 카드':roster[i].topics?.[k-1]||'수집 카드'))+'"><polygon class="rad-card-edge" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><polygon class="rad-card-top" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><g class="rad-card-face"><rect width="62" height="112" rx="1.2" fill="#182835" stroke="#9c927b" stroke-width=".45"/><g class="rad-art-front">'+arcSvgArt(i,k)+'</g><g class="rad-art-back">'+arcSvgBack(i,k)+'</g></g></g>';
   }
-  return '<svg class="arc-radial-svg" viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" aria-label="방사형 회전 카드 수납장"><defs><linearGradient id="radMetal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15242c"/><stop offset=".22" stop-color="#607b7e"/><stop offset=".46" stop-color="#a8b7a7"/><stop offset=".6" stop-color="#435c62"/><stop offset="1" stop-color="#12232d"/></linearGradient><linearGradient id="radGold"><stop stop-color="#896026"/><stop offset=".32" stop-color="#f6dca0"/><stop offset=".64" stop-color="#b68947"/><stop offset="1" stop-color="#f8df9a"/></linearGradient><linearGradient id="radPaper"><stop stop-color="#c3ab80"/><stop offset=".5" stop-color="#f0e2c6"/><stop offset="1" stop-color="#988b74"/></linearGradient><radialGradient id="radTop" cx=".42" cy=".35" r=".75"><stop stop-color="'+(theme==='in'?'#755d50':theme==='ug'?'#65715b':'#54726e')+'"/><stop offset=".65" stop-color="'+(theme==='in'?'#40323c':theme==='ug'?'#35483f':'#223d4b')+'"/><stop offset="1" stop-color="#102833"/></radialGradient><radialGradient id="radShadow"><stop stop-color="#000" stop-opacity=".65"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="radBackPattern" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6L6 0M-3 3L3 -3M3 9L9 3" stroke="#d6ceaa" stroke-opacity=".13" stroke-width=".4"/></pattern><linearGradient id="ugWood" x2="0" y2="1"><stop stop-color="#7d4b29"/><stop offset=".25" stop-color="#4c2918"/><stop offset=".65" stop-color="#2b170e"/><stop offset="1" stop-color="#674024"/></linearGradient><radialGradient id="ugTop"><stop stop-color="#825432"/><stop offset=".65" stop-color="#58341f"/><stop offset="1" stop-color="#27170e"/></radialGradient><pattern id="ugGrain" width="28" height="11" patternUnits="userSpaceOnUse"><path d="M-4 2Q8 -1 17 3T32 2M-2 7Q9 4 20 8T32 7" fill="none" stroke="#d6a76c" stroke-opacity=".22" stroke-width=".65"/></pattern><pattern id="ugWeave" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 6L6 0 12 6 6 12Z" fill="#352418" stroke="#caa269" stroke-width="1.1"/><path d="M3 6L6 3 9 6 6 9Z" fill="#b98748"/><path d="M0 0L3 3M9 9L12 12M0 12L3 9M9 3L12 0" stroke="#e0c08a" stroke-width=".65"/></pattern></defs><g class="rad-model"><ellipse class="rad-shadow" cx="0" cy="0" rx="120" ry="24" fill="url(#radShadow)"/><g class="rad-deck" data-rad-rotator="1"><ellipse cx="0" cy="7" rx="112" ry="47.04" fill="'+(theme==='ug'?'#301b10':'#14232c')+'" stroke="#a3875c" stroke-width="1"/><path d="M-112 0 A112 47.04 0 0 0 112 0 L112 7 A112 47.04 0 0 1 -112 7Z" fill="'+(theme==='ug'?'url(#ugWood)':'url(#radMetal)')+'" stroke="#b4b6a0" stroke-width=".6"/><ellipse rx="112" ry="47.04" fill="'+(theme==='ug'?'url(#ugTop)':'url(#radTop)')+'" stroke="url(#radGold)" stroke-width="1.4"/>'+(theme==='ug'?'<ellipse rx="110" ry="46.2" fill="url(#ugGrain)"/><ellipse rx="105" ry="44.1" fill="none" stroke="#d1a66a" stroke-width=".7"/><ellipse rx="98" ry="41.16" fill="none" stroke="#c9a16a" stroke-width=".6"/><g class="ug-weave-rotor" transform="scale(1 .42)"><circle r="102" fill="none" stroke="url(#ugWeave)" stroke-width="5"/><circle r="13" fill="url(#ugWeave)" stroke="#e1bb77" stroke-width=".8"/></g>':'')+'<ellipse rx="108" ry="45.36" fill="none" stroke="#b9d0c4" stroke-opacity=".38" stroke-width=".7"/><ellipse rx="103" ry="43.26" fill="none" stroke="#9eaa96" stroke-opacity=".25" stroke-width=".65"/><g class="rad-motif" color="#c5c8a8" opacity=".55"><svg x="-11" y="-11" width="22" height="22" viewBox="0 0 100 100">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</svg></g><ellipse rx="12" ry="5.04" fill="none" stroke="#c6bd91" stroke-width=".7"/><g class="rad-ticks">'+Array.from({length:48},(_,j)=>'<line data-rad-tick="'+j+'" stroke="'+(j%6===0?'#d8cfaa':'#9eada7')+'" stroke-opacity="'+(j%6===0?.75:.35)+'" stroke-width=".6"/>').join('')+'</g></g><g class="rad-grooves">'+grooves+'</g><g class="rad-cards">'+cards+'</g></g></svg>';
+  return '<svg class="arc-radial-svg" viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" aria-label="방사형 회전 카드 수납장"><defs><linearGradient id="radMetal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15242c"/><stop offset=".22" stop-color="#607b7e"/><stop offset=".46" stop-color="#a8b7a7"/><stop offset=".6" stop-color="#435c62"/><stop offset="1" stop-color="#12232d"/></linearGradient><linearGradient id="radGold"><stop stop-color="#896026"/><stop offset=".32" stop-color="#f6dca0"/><stop offset=".64" stop-color="#b68947"/><stop offset="1" stop-color="#f8df9a"/></linearGradient><linearGradient id="radPaper"><stop stop-color="#c3ab80"/><stop offset=".5" stop-color="#f0e2c6"/><stop offset="1" stop-color="#988b74"/></linearGradient><radialGradient id="radTop" cx=".42" cy=".35" r=".75"><stop stop-color="'+(theme==='in'?'#755d50':theme==='ug'?'#65715b':'#54726e')+'"/><stop offset=".65" stop-color="'+(theme==='in'?'#40323c':theme==='ug'?'#35483f':'#223d4b')+'"/><stop offset="1" stop-color="#102833"/></radialGradient><radialGradient id="radShadow"><stop stop-color="#000" stop-opacity=".65"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><linearGradient id="ugWood" x2="0" y2="1"><stop stop-color="#7d4b29"/><stop offset=".25" stop-color="#4c2918"/><stop offset=".65" stop-color="#2b170e"/><stop offset="1" stop-color="#674024"/></linearGradient><radialGradient id="ugTop"><stop stop-color="#825432"/><stop offset=".65" stop-color="#58341f"/><stop offset="1" stop-color="#27170e"/></radialGradient><pattern id="ugGrain" width="28" height="11" patternUnits="userSpaceOnUse"><path d="M-4 2Q8 -1 17 3T32 2M-2 7Q9 4 20 8T32 7" fill="none" stroke="#d6a76c" stroke-opacity=".22" stroke-width=".65"/></pattern><pattern id="ugWeave" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 6L6 0 12 6 6 12Z" fill="#352418" stroke="#caa269" stroke-width="1.1"/><path d="M3 6L6 3 9 6 6 9Z" fill="#b98748"/><path d="M0 0L3 3M9 9L12 12M0 12L3 9M9 3L12 0" stroke="#e0c08a" stroke-width=".65"/></pattern></defs><g class="rad-model"><ellipse class="rad-shadow" cx="0" cy="0" rx="120" ry="24" fill="url(#radShadow)"/><g class="rad-deck" data-rad-rotator="1"><ellipse cx="0" cy="7" rx="112" ry="47.04" fill="'+(theme==='ug'?'#301b10':'#14232c')+'" stroke="#a3875c" stroke-width="1"/><path d="M-112 0 A112 47.04 0 0 0 112 0 L112 7 A112 47.04 0 0 1 -112 7Z" fill="'+(theme==='ug'?'url(#ugWood)':'url(#radMetal)')+'" stroke="#b4b6a0" stroke-width=".6"/><ellipse rx="112" ry="47.04" fill="'+(theme==='ug'?'url(#ugTop)':'url(#radTop)')+'" stroke="url(#radGold)" stroke-width="1.4"/>'+(theme==='ug'?'<ellipse rx="110" ry="46.2" fill="url(#ugGrain)"/><ellipse rx="105" ry="44.1" fill="none" stroke="#d1a66a" stroke-width=".7"/><ellipse rx="98" ry="41.16" fill="none" stroke="#c9a16a" stroke-width=".6"/><g class="ug-weave-rotor" transform="scale(1 .42)"><circle r="102" fill="none" stroke="url(#ugWeave)" stroke-width="5"/><circle r="13" fill="url(#ugWeave)" stroke="#e1bb77" stroke-width=".8"/></g>':'')+'<ellipse rx="108" ry="45.36" fill="none" stroke="#b9d0c4" stroke-opacity=".38" stroke-width=".7"/><ellipse rx="103" ry="43.26" fill="none" stroke="#9eaa96" stroke-opacity=".25" stroke-width=".65"/><g class="rad-motif" color="#c5c8a8" opacity=".55"><svg x="-11" y="-11" width="22" height="22" viewBox="0 0 100 100">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</svg></g><ellipse rx="12" ry="5.04" fill="none" stroke="#c6bd91" stroke-width=".7"/><g class="rad-ticks">'+Array.from({length:48},(_,j)=>'<line data-rad-tick="'+j+'" stroke="'+(j%6===0?'#d8cfaa':'#9eada7')+'" stroke-opacity="'+(j%6===0?.75:.35)+'" stroke-width=".6"/>').join('')+'</g></g><g class="rad-grooves">'+grooves+'</g><g class="rad-cards">'+cards+'</g></g></svg>';
  }
  function collectionHTML(){
   const pages=arcPages();
@@ -207,7 +191,7 @@
   if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcReturning)return;
   const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
   if(i===undefined||!viewer||!arcHeld(i,k))return;
-  arcHintSeen=true;content.querySelector('.arc-pull-hint')?.remove();selectedCard=k;arcFlip=false;arcFlipAt=-999;arcLift=0;arcLiftCard=0;arcDraw();viewer.classList.remove('arc-flipped');
+  arcHintSeen=true;content.querySelector('.arc-pull-hint')?.remove();arcFlip=false;arcFlipAt=-999;arcLift=0;arcLiftCard=0;arcDraw();viewer.classList.remove('arc-flipped');
   viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" style="--arc-ratio:'+arcRatio(i,k)+'" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button><div class="arc-flip-hint">카드를 터치하면 앞·뒷면 전환</div>';
   viewer.classList.remove('arc-returning');viewer.hidden=false;drawer.classList.add('arc-viewing');
   viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
