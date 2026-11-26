@@ -292,6 +292,53 @@ const playSfx=(()=>{
   src.connect(f);f.connect(g);g.connect(c.destination);
   src.start(at);src.stop(at+duration+.005);
  }
+ // WAGU signature: two soft voiced-like mouth gestures ("wa-gu").
+ // A shaped pulse/noise excitation through vowel resonances creates a
+ // cartoon mouth sound, not a pitched electronic UI beep or a spoken recording.
+ let waguBank=null,waguIndex=0;
+ function waguBuffers(c){
+  if(waguBank&&waguBank[0].sampleRate===c.sampleRate)return waguBank;
+  const sr=c.sampleRate;
+  waguBank=Array.from({length:4},(_,v)=>{
+   const length=.235+(v%2)*.014,n=Math.ceil(sr*length),buffer=c.createBuffer(1,n,sr),out=buffer.getChannelData(0);
+   let phase=0,prevNoise=0,seed=1777+v*117;
+   const filters=[{y1:0,y2:0},{y1:0,y2:0},{y1:0,y2:0}];
+   for(let j=0;j<n;j++){
+    const t=j/sr;
+    const second=t>=.109,local=t-(second?.109:0),dur=second?length-.109:.105;
+    const k=Math.max(0,Math.min(1,local/dur));
+    const env=local<0||local>dur?0:Math.pow(Math.sin(Math.PI*k),1.4);
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    const noise=seed/2147483648-1;
+    const pitch=(second?154:181)+v*4-(second?25:20)*k+5*Math.sin(2*Math.PI*9*t);
+    phase=(phase+pitch/sr)%1;
+    // Soft laryngeal pulses, little air, and a tiny mouth-closing transient.
+    const voice=Math.pow(Math.max(0,Math.sin(2*Math.PI*phase)),3)-.21;
+    const plosive=Math.exp(-local*95)*(local>=0?1:0);
+    const excitation=env*(voice*.62+noise*.15)+(noise-prevNoise)*plosive*.08;
+    prevNoise=noise;
+    const freqs=second?[470-190*k,1080-300*k,2350]:[430+310*Math.sin(Math.PI*k),930+380*Math.sin(Math.PI*k),2450];
+    const widths=[105,135,240],weights=[.64,.28,.08];
+    let sample=0;
+    for(let f=0;f<3;f++){
+      const r=Math.exp(-Math.PI*widths[f]/sr),st=filters[f];
+      const y=(1-r)*excitation+2*r*Math.cos(2*Math.PI*freqs[f]/sr)*st.y1-r*r*st.y2;
+      st.y2=st.y1;st.y1=y;sample+=y*weights[f];
+    }
+    out[j]=Math.tanh(sample*.52)*env+noise*plosive*.026;
+   }
+   const fade=Math.floor(sr*.012);
+   for(let j=0;j<fade;j++){out[j]*=j/fade;out[n-1-j]*=j/fade;}
+   let peak=0;for(const x of out)peak=Math.max(peak,Math.abs(x));const g=.73/Math.max(.001,peak);for(let j=0;j<n;j++)out[j]*=g;
+   return buffer;
+  });
+  return waguBank;
+ }
+ function wagu(c,at){
+  const samples=waguBuffers(c),src=c.createBufferSource(),g=c.createGain();
+  src.buffer=samples[waguIndex++%samples.length];g.gain.value=.34*Math.max(0,Math.min(1,Number(prefs.sfx)/100));
+  src.connect(g);g.connect(c.destination);src.start(at);
+ }
  return function(kind){
   if(!Object.prototype.hasOwnProperty.call(limits,kind))return false;
   const nowMs=performance.now();
@@ -300,9 +347,7 @@ const playSfx=(()=>{
   last[kind]=nowMs;const t=c.currentTime+.006;
   try{
    if(kind==='bite'){
-    rustle(c,t,.12,.19,1900,'highpass');
-    rustle(c,t+.05,.095,.12,2700,'highpass');
-    tone(c,t,.13,210,112,.095,'triangle');
+    wagu(c,t);
    }else if(kind==='swallow'){
     tone(c,t,.28,440,95,.23,'sine');
     tone(c,t+.13,.18,220,88,.13,'triangle');
@@ -335,7 +380,7 @@ drawerAudio?.addEventListener('click',async e=>{
  const hint=document.getElementById('wwAudioHint');
  if(btn.dataset.wwAudioTest==='sfx'){
   const ok=playSfx('bite');
-  if(hint)hint.textContent=ok?'바삭! 먹기 효과음 재생 중 · 효과음 슬라이더로 조절해.':'효과음이 0이거나 오디오를 시작할 수 없어.';
+  if(hint)hint.textContent=ok?'와구와구! 먹기 효과음 재생 중 · 효과음 슬라이더로 조절해.':'효과음이 0이거나 오디오를 시작할 수 없어.';
  }else{
   if(prefs.bgm===0){if(hint)hint.textContent='배경음악 음량을 1 이상으로 올려줘.';return;}
   if(hint)hint.textContent='배경음악을 불러오는 중…';
