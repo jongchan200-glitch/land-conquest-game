@@ -62,52 +62,161 @@
   updateHUD();
  }
  function previewBadge(){return localStorage.getItem(previewKey)==='1'}
- function openPanel(which){selectedPanel=which;drawer.hidden=false;renderPanel(which);document.getElementById('homeDrawerClose').focus({preventScroll:true})}
+ function openPanel(which){if(which==='album'&&selectedPanel!=='album'){arcPage=0;arcYaw=0;}selectedPanel=which;drawer.hidden=false;renderPanel(which);document.getElementById('homeDrawerClose').focus({preventScroll:true})}
 
- function collectionHTML(){
-  const owned=totalOwned(),ch=roster[albumIndex],n=ownedCount(albumIndex),available=roster.slice(0,3);
-  const previewTools='<div class="ww-preview-tools"><span>제작 시안 검수 · 소장 카드와 별도</span><button type="button" data-home-action="toggle-preview">'+(showPreview?'시안 숨기기':'시안 보기')+'</button></div>'+
-     '<div class="ww-person-shortcuts">'+available.map((p,i)=>'<button type="button" data-home-action="collection-person-'+i+'" class="'+(i===albumIndex?'active':'')+'">'+String(i+1).padStart(2,'0')+' · '+p.name+'</button>').join('')+'</div>';
-  const nav='<div class="collect-head"><div><span class="collect-kicker">THE PORTRAIT ARCHIVE</span><h3>나의 컬렉션 <em>'+owned+'<small> / 64</small></em></h3></div><div class="collect-orb">✦</div></div><div class="collect-progress"><span style="width:'+(owned/64*100)+'%"></span></div>'+previewTools;
-  if(albumView==='detail'||albumView==='card'){
-   const i=albumIndex;
-   if(albumView==='card'){
-    const has=ownedAt(i,selectedCard),gold=selectedCard===8;
-    const artwork=canPreview(ch)?previewArt(ch,selectedCard):has&&ch.image&&selectedCard===1?'<img src="'+ch.image+'" alt="'+ch.name+' 카드">':'<div class="collect-empty-art">'+(has?'획득 완료 · 개별 사진 준비 중':'미획득 카드')+'</div>';
-    return nav+'<button class="collect-back" data-home-action="collection-detail">‹ '+ch.name+' 카드첩</button>'+
-       '<div class="collect-card-preview '+(gold?'gold':'')+' '+(canPreview(ch)?'ww-preview-card':'')+'">'+artwork+'<span>'+String(selectedCard).padStart(2,'0')+' / 08 · '+(canPreview(ch)?'제작 시안':has?'수집 완료':'미획득')+'</span></div>'+
-       '<p class="collect-caption">'+(ch.topics?.[selectedCard-1]||'카드 이야기')+' · '+(has?'수집한 카드':'미획득 · 검수용 이미지')+'</p>'+
-       (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 미리보기는 실제 게임 보상을 지급하지 않아.</p>':'');
-   }
-   let slots='';
-   for(let k=1;k<=8;k++){
-    const got=ownedAt(i,k),gold=k===8,visual=canPreview(ch),image=visual?previewArt(ch,k):got&&ch.image&&k===1?'<img src="'+ch.image+'" alt="">':got?'✦':'◇';
-    slots+='<button class="collect-slot '+(got?'filled':'locked')+' '+(gold?'gold':'')+' '+(visual?'ww-preview-slot':'')+'" data-home-action="collection-card-'+k+'" aria-label="'+ch.name+' '+k+'번 '+(got?'획득':'미획득')+'">'+
-      '<span class="collect-slot-art">'+image+'</span><span class="collect-slot-id">'+String(k).padStart(2,'0')+(got?' · 보유':visual?' · 시안':gold?' · GOLD':' · 잠김')+'</span></button>';
-   }
-   const profile=Array.from({length:8},(_,j)=>{
-     const got=ownedAt(i,j+1);
-     return '<div class="collect-profile-line '+(got?'unlocked':'')+'"><span>'+String(j+1).padStart(2,'0')+'</span><span>'+(got||canPreview(ch)?(ch.topics?.[j]||'카드 이야기'):'??? · 카드 획득 시 공개')+'</span><small>'+(got?'수집':canPreview(ch)?'시안':'잠김')+'</small></div>';
-   }).join('');
-   return nav+'<button class="collect-back" data-home-action="collection-back">‹ 8명 컬렉션</button>'+
-     '<div class="collect-person-bar"><strong>'+ch.name+'</strong><span>'+n+' / 8 실제 획득</span></div>'+
-     '<div class="collect-slots">'+slots+'</div>'+
-     (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 제작 시안 8장을 모두 보여주는 검수 모드. 실제 수집 내역과 별도야.</p>':'')+
-     '<h3 class="collect-section-title">한 장씩 열리는 이야기</h3><div class="collect-profile">'+profile+'</div>';
+ // Collection v0.2.36. One circular display for each discovered person.
+ // QA samples are view-only, and never written to the game's album.
+ const arcQA=new URLSearchParams(location.search).get('collection-preview')==='1';
+ const arcSample=[[1,2,4,8],[1,3,5],[1,2,6]];
+ let arcYaw=0,arcPage=0,arcStop=0,arcFrame=0,arcDrag=null,arcFlip=false,arcPageDrag=null,arcAnimating=false,arcFlipAt=-999;
+ const arcStep=Math.PI/4,arcTau=Math.PI*2;
+ const arcThemes=[
+  ['kr','한국','#d0e1d8','#9ed6c5'],['in','인도','#d9b87f','#c99267'],['ug','우간다','#c58d57','#b7b676']
+ ];
+ const arcHeld=(i,k)=>ownedAt(i,k)||(arcQA&&!!arcSample[i]?.includes(k));
+ const arcPages=()=>{
+  const result=[];
+  for(const key of Object.keys(state.album||{})){
+   if(!state.album[key])continue;
+   const i=roster.findIndex(c=>key.startsWith(c.id+'_'));
+   if(i>=0&&!result.includes(i))result.push(i);
   }
-  const indicators=roster.map((c,k)=>'<button class="collect-dot '+(k===albumIndex?'active':'')+'" data-home-action="collection-person-'+k+'" aria-label="'+(k+1)+'번째 인물">'+(k+1)+'</button>').join('');
-  const portrait=canPreview(ch)?previewArt(ch,1):ch.image?'<img src="'+ch.image+'" alt="'+ch.name+' 대표 사진">':'<span class="collect-hidden-person">✧</span>';
-  const gallery='<div class="collect-carousel"><button class="collect-arrow" data-home-action="collection-prev" aria-label="이전 인물">‹</button>'+
-    '<button class="collect-hero '+(n?'unlocked':'missing')+'" data-home-action="collection-detail"><span class="collect-hero-img '+(canPreview(ch)?'ww-preview-hero':'')+'">'+portrait+'</span>'+
-    '<span class="collect-hero-copy"><small>PORTRAIT '+String(albumIndex+1).padStart(2,'0')+' / 08</small><strong>'+ch.name+'</strong>'+
-    '<span>실제 보유 '+n+'/8 · '+(canPreview(ch)?'8장 시안 확인 가능':pctCards(albumIndex)+'%')+'</span><i>카드첩 펼치기 ↗</i></span></button>'+
-    '<button class="collect-arrow" data-home-action="collection-next" aria-label="다음 인물">›</button></div>';
-  return nav+gallery+'<div class="collect-dots">'+indicators+'</div><p class="collect-caption">좌우로 넘겨 인물 선택 · 카드를 눌러 8장 시안을 확인해봐.</p>'+
-    '<div class="collect-mini-roster">'+roster.map((c,k)=>'<button data-home-action="collection-person-'+k+'" class="'+(k===albumIndex?'active':'')+'">'+String(k+1).padStart(2,'0')+' · '+(k<3?c.name+' · ':'')+ownedCount(k)+'/8</button>').join('')+'</div>'+
-    (canPreview(ch)?'<p class="ww-preview-warning">'+ch.previewStatus+' · 미리보기 사진은 확정된 최종 카드가 아니야.</p>':'');
+  if(arcQA)for(let i=0;i<arcSample.length;i++)if(!result.includes(i))result.push(i);
+  return result;
+ };
+ const arcCount=i=>Array.from({length:8},(_,j)=>arcHeld(i,j+1)).filter(Boolean).length;
+ const arcMod=(a,n)=>((a%n)+n)%n;
+ const arcFront=()=>arcMod(Math.round(-arcYaw/arcStep),8)+1;
+ const arcPerson=()=>arcPages()[arcPage];
+ const arcEscape=x=>String(x??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+ function arcArt(ch,k){
+  if(k===1&&ch.image)return '<img class="arc-original" draggable="false" src="'+ch.image+'" alt="'+arcEscape(ch.name)+'">';
+  if(ch.previewSheet)return previewArt(ch,k).replace('loading="lazy"','loading="eager" draggable="false"');
+  return '<span class="arc-art-missing">✦</span>';
  }
+ function arcMark(theme){
+  if(theme==='kr')return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="50" cy="50" r="34"/><circle cx="50" cy="50" r="28"/><path d="M50 17Q66 34 83 50Q66 66 50 83Q34 66 17 50Q34 34 50 17Z"/><path d="M50 26Q67 50 50 74Q33 50 50 26ZM26 50Q50 33 74 50Q50 67 26 50Z"/><circle cx="50" cy="50" r="9"/></g></svg>';
+  if(theme==='in')return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="50" cy="50" r="34"/>'+Array.from({length:8},(_,j)=>'<path transform="rotate('+j*45+' 50 50)" d="M50 50Q28 25 50 13Q72 25 50 50Z"/>').join('')+'<circle cx="50" cy="50" r="9"/></g></svg>';
+  if(theme==='ug')return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M50 12L88 50 50 88 12 50ZM50 23L77 50 50 77 23 50ZM50 34L66 50 50 66 34 50Z"/><path d="M12 50L24 38 36 50 24 62ZM88 50L76 38 64 50 76 62ZM50 12L38 24 50 36 62 24ZM50 88L38 76 50 64 62 76Z"/></g></svg>';
+  return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="50" cy="50" r="34"/><path d="M50 12L88 50 50 88 12 50ZM50 26L74 50 50 74 26 50Z"/><circle cx="50" cy="50" r="8"/></g></svg>';
+ }
+ function arcCard(i,k){
+  const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
+  return '<div class="arc-card-face arc-face-front '+(gold?'is-gold':'')+'"><div class="arc-photo">'+arcArt(ch,k)+'</div><div class="arc-card-caption"><strong>'+arcEscape(ch.name)+'</strong><span>'+arcEscape(ch.english)+(gold?' · GOLD':'')+'</span></div><i class="arc-corner a"></i><i class="arc-corner b"></i><i class="arc-corner c"></i><i class="arc-corner d"></i></div>'+
+   '<div class="arc-card-face arc-face-back '+(gold?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark(theme)+'<b>'+(gold?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
+ }
+ function arcProfile(i){
+  const ch=roster[i],items=[];
+  if(arcHeld(i,1)){if(ch.age)items.push(ch.age+'세');if(ch.height)items.push(ch.height+'cm');}
+  for(let k=2;k<=8;k++)if(arcHeld(i,k)&&ch.topics?.[k-1])items.push(ch.topics[k-1]);
+  return '<section class="arc-profile"><div class="arc-name"><strong>'+arcEscape(ch.name)+'</strong><span>'+arcEscape(ch.country)+'</span></div><div class="arc-engraving">'+items.map(v=>'<span>'+arcEscape(v)+'</span>').join('')+'</div></section>';
+ }
+ function collectionHTML(){
+  const pages=arcPages();
+  if(!pages.length)return '<div class="arc-empty-page"><div class="arc-empty-emblem">'+arcMark('neutral')+'</div><div>첫 카드를 기다리는 수납장</div><button data-home-action="arc-exit" class="arc-explore">탐험으로 돌아가기</button></div>';
+  arcPage=Math.max(0,Math.min(pages.length-1,arcPage));
+  const i=pages[arcPage],ch=roster[i],theme=arcThemes[i]||['neutral',ch.country,'#d9c49d','#8db1a3'],slots=[];
+  for(let k=1;k<=8;k++){
+   const held=arcHeld(i,k),gold=k===8;
+   slots.push('<div class="arc-slot '+(gold?'arc-gold-slot':'')+'" data-arc-slot="'+k+'" role="'+(held?'button':'img')+'" tabindex="'+(held?'0':'-1')+'" aria-label="'+arcEscape(ch.name)+' '+(gold?'골드 카드':held?(ch.topics?.[k-1]||'수집 카드'):'빈 슬롯')+'"><div class="arc-groove"><i></i>'+(gold?'<b>✦</b>':'')+'</div>'+(held?'<div class="arc-card-object">'+arcCard(i,k)+'</div>':'')+'</div>');
+  }
+  return '<div class="arc-root arc-theme-'+theme[0]+'" style="--arc-metal:'+theme[2]+';--arc-accent:'+theme[3]+'">'+
+   (arcQA?'<div class="arc-qa">디자인 검수 · 예시 카드</div>':'')+
+   '<div class="arc-page-band" data-arc-page-band><button class="arc-page-arrow" data-home-action="arc-prev" aria-label="이전 수납장" '+(arcPage===0?'disabled':'')+'>‹</button><div class="arc-page-info"><span class="arc-page-dots">'+pages.map((_,j)=>'<i class="'+(j===arcPage?'active':'')+'"></i>').join('')+'</span><span class="arc-count">'+arcCount(i)+' / 8</span></div><button class="arc-page-arrow" data-home-action="arc-next" aria-label="다음 수납장" '+(arcPage===pages.length-1?'disabled':'')+'>›</button></div>'+
+   '<div class="arc-wheel" tabindex="0" aria-label="회전식 카드 수납장, 좌우로 돌리기"><div class="arc-wheel-glow"></div><div class="arc-pedestal"><div class="arc-plinth"></div><div class="arc-plinth-band"><span></span><span></span><span></span></div><div class="arc-disc"><div class="arc-disc-rim"></div>'+arcMark(theme[0])+'</div></div><div class="arc-orbit">'+slots.join('')+'</div></div>'+
+   '<div class="arc-page-bottom" data-arc-page-band>'+arcProfile(i)+'</div><div class="arc-viewer" hidden></div></div>';
+ }
+ function arcCancel(){
+  clearTimeout(arcStop);cancelAnimationFrame(arcFrame);arcStop=0;arcFrame=0;arcDrag=null;arcPageDrag=null;arcAnimating=false;
+ }
+ function arcDraw(){
+  const wheel=content.querySelector('.arc-wheel');if(!wheel)return;
+  const w=wheel.clientWidth,h=wheel.clientHeight;
+  const r=Math.min(w*.29,112),d=Math.min(h*.073,30);
+  wheel.style.setProperty('--arc-radius',r+'px');
+  for(const el of wheel.querySelectorAll('[data-arc-slot]')){
+   const k=Number(el.dataset.arcSlot),a=arcYaw+(k-1)*arcStep,sn=Math.sin(a),cs=Math.cos(a);
+   const depth=(cs+1)/2;
+   el.style.transform='translate3d('+(sn*r).toFixed(2)+'px,'+(cs*d).toFixed(2)+'px,'+(cs*r*.72).toFixed(2)+'px) rotateY('+a+'rad)';
+   el.style.zIndex=String(20+Math.round(depth*100));
+   el.classList.toggle('arc-front-slot',k===arcFront());
+  }
+ }
+ function arcShow(k){
+  if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcAnimating)return;
+  const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
+  if(i===undefined||!viewer||!arcHeld(i,k))return;
+  selectedCard=k;arcFlip=false;viewer.classList.remove('arc-flipped');
+  viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
+  viewer.hidden=false;drawer.classList.add('arc-viewing');
+  viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
+ }
+ function arcClose(){
+  const v=content.querySelector('.arc-viewer');if(!v||v.hidden)return false;
+  v.hidden=true;v.innerHTML='';arcFlip=false;drawer.classList.remove('arc-viewing');return true;
+ }
+ function arcSettle(target,open=true){
+  clearTimeout(arcStop);cancelAnimationFrame(arcFrame);
+  const from=arcYaw,delta=target-from,begin=performance.now();arcAnimating=true;
+  const frame=t=>{
+   const q=Math.min(1,Math.max(0,(t-begin)/260));arcYaw=from+delta*(1-Math.pow(1-q,3));arcDraw();
+   if(q<1){arcFrame=requestAnimationFrame(frame);return;}
+   arcYaw=target;arcAnimating=false;arcDraw();
+   if(open)arcStop=setTimeout(()=>arcShow(arcFront()),380);
+  };
+  arcFrame=requestAnimationFrame(frame);
+ }
+ function arcMovePage(delta){
+  const pages=arcPages(),next=Math.max(0,Math.min(pages.length-1,arcPage+delta));
+  if(next===arcPage)return;
+  arcCancel();arcClose();arcPage=next;arcYaw=0;renderPanel('album');
+ }
+ function arcWire(){
+  arcCancel();drawer.classList.remove('arc-viewing');const wheel=content.querySelector('.arc-wheel');if(!wheel)return;
+  arcDraw();requestAnimationFrame(()=>{if(selectedPanel==='album'&&!drawer.hidden)arcDraw();});
+  wheel.addEventListener('pointerdown',e=>{
+   if(e.button>0||arcDrag)return;
+   clearTimeout(arcStop);cancelAnimationFrame(arcFrame);arcAnimating=false;
+   arcDrag={id:e.pointerId,x:e.clientX,y:e.clientY,from:arcYaw,moved:false,slot:e.target.closest('[data-arc-slot]')?.dataset.arcSlot};
+   try{wheel.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  wheel.addEventListener('pointermove',e=>{
+   if(!arcDrag||e.pointerId!==arcDrag.id)return;
+   const dx=e.clientX-arcDrag.x,dy=e.clientY-arcDrag.y;
+   if(Math.abs(dx)>6&&Math.abs(dx)>Math.abs(dy)*.7)arcDrag.moved=true;
+   if(!arcDrag.moved)return;
+   arcYaw=arcDrag.from+dx*arcTau/Math.max(360,wheel.clientWidth*1.35);arcDraw();e.preventDefault();
+  });
+  const end=e=>{
+   if(!arcDrag||e.pointerId!==arcDrag.id)return;
+   const d=arcDrag;arcDrag=null;
+   if(e.type!=='pointerup'){arcSettle(Math.round(arcYaw/arcStep)*arcStep,false);return;}
+   if(d.moved){arcSettle(Math.round(arcYaw/arcStep)*arcStep);return;}
+   if(d.slot){
+    const k=Number(d.slot),base=-(k-1)*arcStep;
+    const target=base+Math.round((arcYaw-base)/arcTau)*arcTau;
+    arcSettle(target);
+   }
+  };
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])wheel.addEventListener(type,end);
+  wheel.addEventListener('keydown',e=>{
+   if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();arcSettle(Math.round(arcYaw/arcStep)*arcStep+(e.key==='ArrowLeft'?arcStep:-arcStep));}
+   if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();const k=Number(e.target.closest('[data-arc-slot]')?.dataset.arcSlot)||arcFront();const base=-(k-1)*arcStep;arcSettle(base+Math.round((arcYaw-base)/arcTau)*arcTau);}
+  });
+  for(const band of content.querySelectorAll('[data-arc-page-band]')){
+   band.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};try{band.setPointerCapture(e.pointerId)}catch(_){}});
+   band.addEventListener('pointerup',e=>{if(!arcPageDrag||e.pointerId!==arcPageDrag.id)return;const dx=e.clientX-arcPageDrag.x,dy=e.clientY-arcPageDrag.y;arcPageDrag=null;if(Math.abs(dx)>42&&Math.abs(dx)>Math.abs(dy))arcMovePage(dx<0?1:-1);});
+   band.addEventListener('pointercancel',()=>arcPageDrag=null);
+  }
+  const viewer=content.querySelector('.arc-viewer');
+  viewer?.addEventListener('click',e=>{if(e.target.closest('.arc-view-card')){if(performance.now()-arcFlipAt<300)return;arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}else if(e.target===viewer)arcClose();});
+  viewer?.addEventListener('pointerdown',e=>{if(e.target.closest('.arc-view-card'))arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};});
+  viewer?.addEventListener('pointerup',e=>{if(arcPageDrag?.id===e.pointerId&&Math.abs(e.clientX-arcPageDrag.x)>38){arcFlipAt=performance.now();arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}arcPageDrag=null;});
+ }
+ window.addEventListener('resize',()=>{if(selectedPanel==='album'&&!drawer.hidden)arcDraw();});
  function renderPanel(which=selectedPanel){
   if(!which)return;
+  drawer.classList.toggle('arc-collection',which==='album');if(which!=='album'){arcCancel();drawer.classList.remove('arc-viewing');}
   title.textContent=({character:'캐릭터',shop:'상점',expedition:'탐험',settings:'설정',album:'컬렉션'})[which]||'메뉴';
   let html='';
   if(which==='character'){
@@ -151,9 +260,9 @@
    html=collectionHTML();
   }
   if(which==='settings')html=window.wwSettingsMarkup?.()+html;
-  content.innerHTML=html;window.wwTranslate?.(drawer);
+  content.innerHTML=html;window.wwTranslate?.(drawer);if(which==='album')arcWire();
  }
- function closeDrawer(){drawer.hidden=true;selectedPanel='';if(window.__homeIsOpen)window.wwBgm?.pause()}
+ function closeDrawer(){arcCancel();drawer.classList.remove('arc-viewing','arc-collection');drawer.hidden=true;selectedPanel='';if(window.__homeIsOpen)window.wwBgm?.pause()}
  home.addEventListener('click',e=>{const p=e.target.closest('[data-home-panel]');if(p){e.preventDefault();openPanel(p.dataset.homePanel)}});
  document.getElementById('homePlay').addEventListener('click',leaveHome);
  document.getElementById('homeDrawerClose').addEventListener('click',closeDrawer);
@@ -179,13 +288,10 @@
   const b=e.target.closest('[data-home-action],[data-do]');if(!b)return;
   e.preventDefault();const action=b.dataset.homeAction||b.dataset.do;
   if(action==='test-lab'){closeDrawer();window.__startWaguLab?.();return;}   if(action.startsWith('buy-')){buy(action.slice(4));refreshStats();renderPanel('shop');return}
-  if(action==='album'){albumIndex=0;albumView='roster';openPanel('album');return}
-  if(action==='toggle-preview'){showPreview=!showPreview;renderPanel('album');return;}
-  if(action==='collection-next'||action==='collection-prev'){albumIndex=(albumIndex+(action==='collection-next'?1:7))%8;albumView='roster';renderPanel('album');return}
-  if(action.startsWith('collection-person-')){albumIndex=Math.max(0,Math.min(7,Number(action.slice(18))||0));albumView='roster';renderPanel('album');return}
-  if(action==='collection-detail'){albumView='detail';renderPanel('album');return}
-  if(action==='collection-back'){albumView='roster';renderPanel('album');return}
-  if(action.startsWith('collection-card-')){selectedCard=Math.max(1,Math.min(8,Number(action.slice(16))||1));albumView='card';renderPanel('album');return}
+  if(action==='album'){openPanel('album');return}
+  if(action==='arc-prev'||action==='arc-next'){arcMovePage(action==='arc-prev'?-1:1);return;}
+  if(action==='arc-close-card'){arcClose();return;}
+  if(action==='arc-exit'){closeDrawer();return;}
   if(action.startsWith('skin-')){
    const skin=action.slice(5),prices={peach:0,mint:120,coral:180,gold:400};
    if(!(skin in prices))return;
@@ -208,14 +314,12 @@
   if(action==='toggle-minimap'){miniOn=!miniOn;mini.classList.toggle('visible',miniOn);renderPanel('settings');return;}
   if(action==='fullscreen'){doAction('screen');return}
  });
- let collectionTouchX=null;
- content.addEventListener('touchstart',e=>{if(!e.target.closest('.collect-carousel'))return;collectionTouchX=e.touches[0]?.clientX||null},{passive:true});
- content.addEventListener('touchend',e=>{if(collectionTouchX===null)return;const delta=(e.changedTouches[0]?.clientX||collectionTouchX)-collectionTouchX;collectionTouchX=null;if(Math.abs(delta)>45&&selectedPanel==='album'&&albumView==='roster'){albumIndex=(albumIndex+(delta<0?1:7))%8;renderPanel('album')}},{passive:true});
- window.addEventListener('keydown',e=>{if(e.key==='Escape'&&window.__homeIsOpen&&!drawer.hidden){closeDrawer();e.preventDefault()}});
+ window.addEventListener('keydown',e=>{if(e.key==='Escape'&&window.__homeIsOpen&&!drawer.hidden){if(!arcClose())closeDrawer();e.preventDefault()}});
  window.__openLandHome=openHome;
  window.__refreshLandHomePanel=renderPanel;
  window.__refreshLandHomeStats=refreshStats;
- window.__collectionTest={rosterCount:()=>roster.length,owned:totalOwned,open:()=>{albumView='roster';openPanel('album')},select:(i)=>{albumIndex=i;albumView='detail';renderPanel('album')}};
+ window.__collectionTest={rosterCount:()=>arcPages().length,owned:totalOwned,open:()=>openPanel('album'),select:(i)=>{const j=arcPages().indexOf(i);if(j>=0){arcPage=j;arcYaw=0;renderPanel('album');}},snapshot:()=>({pages:arcPages(),page:arcPage,front:arcFront(),qa:arcQA,owned:totalOwned(),yaw:arcYaw})};
  window.__landHomeTest={getOpen:()=>window.__homeIsOpen,panel:()=>selectedPanel,stats:()=>({best,level:state.level,coins:state.coins,badge:previewBadge(),modelActive:!!window.home3D?.active}),openPanel,enterGame:leaveHome,returnHome:openHome};
  openHome();
+ if(arcQA)openPanel('album');
 })();
