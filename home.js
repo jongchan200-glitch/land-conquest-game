@@ -12,7 +12,7 @@
   {sheet:'./assets/cards/amara-8-preview.png',size:[1502,1058],rects:Array.from({length:8},(_,i)=>[23+(i%4)*357,i<4?23:521,342,426]),status:'8장 후보 사진 / 대표 얼굴 미확정'}
  ];
  const amara={id:'CHAR_003',name:'아마라',english:'AMARA',country:'우간다 · 가상 설정',age:16,
-   topics:['아이를 바라보는 눈빛','책 읽어주는 오후','어르신께 나눔','요리 전 준비','공동 부엌의 요리사','옷가지 정리','따뜻한 한 그릇','옷깃을 고쳐주다']};
+   topics:['우간다 · 16세 · 학생','취미: 동화책 읽기·텃밭','명랑함 · 친화력','화목한 가족','요리 · 요리 메모','책임감 · 봉사','부탁을 거절하기 어려움','동네 식당 겸 공부방']};
  const roster=Array.from({length:8},(_,i)=>{
    const ch=characters[i]||(i===2?amara:null)||{id:'CHAR_'+String(i+1).padStart(3,'0'),name:'미공개 인물 '+String(i+1).padStart(2,'0'),english:'COMING SOON',country:'새로운 이야기',topics:Array.from({length:8},(_,j)=>j===7?'스페셜 카드':'이야기 '+(j+1))};
    return previews[i]?{...ch,previewSheet:previews[i].sheet,previewSize:previews[i].size,previewRects:previews[i].rects,previewStatus:previews[i].status}:ch;
@@ -67,7 +67,7 @@
  // Collection v0.2.36. One circular display for each discovered person.
  // QA samples are view-only, and never written to the game's album.
  const arcQA=new URLSearchParams(location.search).get('collection-preview')==='1';
- const arcSample=[[1,2,4,8],[1,3,5],[1,2,6]];
+ const arcSample=[[1,2,4,8],[1,3,5],[1,2,3,4,5,6,7,8]];
  let arcYaw=0,arcPage=0,arcStop=0,arcFrame=0,arcDrag=null,arcFlip=false,arcPageDrag=null,arcAnimating=false,arcFlipAt=-999;
  const arcStep=Math.PI/4,arcTau=Math.PI*2;
  const arcThemes=[
@@ -103,10 +103,10 @@
  // Existing preview sheets already contain their own frames and profile text.
  // Display that original card face exactly once, at its native crop ratio.
  function arcRatio(i,k){
-  const ch=roster[i],r=ch.previewRects?.[k-1];
-  return k===1&&ch.image ? .75 : (r&&r[3]>0 ? r[2]/r[3] : .75);
+  return 2/3;
  }
  function arcCard(i,k){
+  if(i===2)return '<div class="arc-card-face arc-face-front arc-amara-front">'+amaraFront(k)+'</div><div class="arc-card-face arc-face-back '+(k===8?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark('ug')+'<b>'+(k===8?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
   const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral',raw=k===1&&!!ch.image,source=!raw&&!!ch.previewSheet;
   const art=arcArt(ch,k);
   return '<div class="arc-card-face arc-face-front '+(source?'arc-source-face':raw?'arc-portrait-face':'arc-unmade-face')+' '+(gold?'is-gold':'')+'">'+art+(raw?'<span class="arc-portrait-name">'+arcEscape(ch.name)+'</span>':'')+'</div>'+
@@ -122,19 +122,30 @@
  // Each upright card lies IN a plane through the rotation axis, not a tangent.
  // All projections are orthographic and use the same camera for the deck,
  // grooves, artwork, thin paper edges and the back of the cards.
- const RAD={R:148,inner:56,outer:126,cardInner:60,cardOuter:122,H:112,thick:.65,sin:.42,cos:Math.sqrt(1-.42*.42)};
+ const RAD={R:112,inner:15,outer:108,cardInner:18,cardOuter:104,H:129,thick:.52,sin:.42,cos:Math.sqrt(1-.42*.42)};
  let arcLift=0,arcLiftCard=0,arcReturnTimer=0,arcReturning=false;
  const radialGeometry=(a,cx,cy,scale=1)=>{
   const sn=Math.sin(a),cs=Math.cos(a);
   const p=(r,h=0,t=0)=>[cx+scale*(sn*r+cs*t),cy+scale*((cs*r-sn*t)*RAD.sin-h*RAD.cos)];
   return {sn,cs,p,front:sn<0,depth:cs};
  };
- function arcSvgArt(i,k){
+ function arcOldSvgArt(i,k){
   const ch=roster[i],r=ch.previewRects?.[k-1],size=ch.previewSize;
   if(k===1&&ch.image)return '<image href="'+arcEscape(ch.image)+'" x="0" y="0" width="62" height="112" preserveAspectRatio="xMidYMid meet"/>';
   if(ch.previewSheet&&r&&size)return '<svg x="0" y="0" width="62" height="112" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid meet" overflow="hidden"><image href="'+arcEscape(ch.previewSheet)+'" x="0" y="0" width="'+size[0]+'" height="'+size[1]+'"/></svg>';
   return '<path d="M31 36L45 56 31 76 17 56Z" fill="none" stroke="#cfc49d" stroke-width=".8"/>';
  }
+ const amaraProfiles=[
+ ['우간다 · 16세 · 학생','기본 프로필'],['동화책 읽기 · 텃밭 가꾸기','취미'],['명랑하고 다정함 · 친화력','성격'],['넉넉하지 않지만 화목한 가정','가족'],['요리 · 요리 메모','취미'],['책임감 · 이웃과 나눔','장점'],['부탁을 거절하기 어려움','고민'],['작은 동네 식당 겸 공부방','오늘 누군가 웃었다면 좋은 날']
+ ];
+ function amaraFront(k){
+  const gold=k===8,profile=amaraProfiles[k-1],ch=roster[2];
+  // Legacy contact sheet has photo-only images. Crop each separately in a bounded viewport.
+  const r=ch.previewRects[k-1],sz=ch.previewSize;
+  const image=k===3?'<image href="./assets/cards/amara-master-v1.svg" x="0" y="0" width="56" height="83" preserveAspectRatio="xMidYMid slice"/>':'<svg width="56" height="83" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid slice" overflow="hidden"><image href="'+ch.previewSheet+'" width="'+sz[0]+'" height="'+sz[1]+'"/></svg>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 62 112" width="62" height="112"><rect width="62" height="112" rx="2" fill="'+(gold?'#52381a':'#122c4a')+'"/><rect x="1" y="1" width="60" height="110" rx="1.6" fill="none" stroke="'+(gold?'#ffe4a0':'#bda56c')+'" stroke-width="1.2"/><rect x="2.7" y="2.7" width="56.6" height="106.6" rx=".7" fill="none" stroke="#e2c88a" stroke-width=".35"/><svg x="3" y="12" width="56" height="83" overflow="hidden">'+image+'</svg><path d="M3 12H59V95H3Z" fill="none" stroke="#dfc78a" stroke-width=".6"/><path d="M3 3H59V11H3Z" fill="'+(gold?'#795722':'#142e49')+'"/><text x="6" y="8.4" fill="#f9e7bc" font-size="4.5" font-weight="bold">'+(gold?'GOLD':String(k).padStart(2,'0'))+'</text><text x="56" y="8.3" text-anchor="end" fill="#f5e6ca" font-size="4.4" font-weight="bold">아마라 · AMARA</text><rect x="3" y="96" width="56" height="13" fill="'+(gold?'#725321':'#193751')+'"/><text x="31" y="100" text-anchor="middle" fill="#f8db99" font-size="3.5" font-weight="bold">'+arcEscape(profile[1])+'</text><text x="31" y="105.1" text-anchor="middle" fill="#fff2d9" font-size="'+(profile[0].length>15?'2.65':'3.3')+'">'+arcEscape(profile[0])+'</text>'+(gold?'<path d="M2 13L7 8M55 8L60 13M2 95L7 100M55 100L60 95" stroke="#fff1b2" stroke-width="1.5"/>':'')+'</svg>';
+ }
+ function arcSvgArt(i,k){return i===2?amaraFront(k):arcOldSvgArt(i,k)}
  function arcSvgBack(i,k){
   const gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
   return '<rect width="62" height="112" rx="1.2" fill="'+(gold?'#604b2c':'#193448')+'"/><rect x="3" y="3" width="56" height="106" rx="1.5" fill="none" stroke="'+(gold?'#ffe6a5':'#a9b9ab')+'" stroke-width=".7"/><rect x="5" y="5" width="52" height="102" fill="url(#radBackPattern)" stroke="#c9bc8b" stroke-width=".35"/><g transform="translate(9 35) scale(.44)" color="'+(gold?'#ffe5aa':'#c2d5cb')+'">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</g><text x="31" y="15" fill="#e7d6ac" text-anchor="middle" font-size="4.6" letter-spacing=".65">WAGU WAGU</text><text x="31" y="101" fill="#e7d6ac" text-anchor="middle" font-size="4" letter-spacing=".45">'+(gold?'GOLD COLLECTION':'COLLECTION')+'</text>';
@@ -146,7 +157,7 @@
    grooves+='<g data-rad-groove="'+k+'" data-arc-slot="'+k+'" class="arc-radial-hit" role="img" aria-label="'+(gold?'골드 전용 슬롯':'카드 슬롯')+'"><polygon class="rad-groove-rim" fill="'+(gold?'url(#radGold)':'#98aaa6')+'" stroke="'+(gold?'#ffedbe':'#d1d8c9')+'" stroke-width=".6"/><polygon class="rad-groove-hole" fill="#09161b" stroke="#172529" stroke-width=".6"/></g>';
    if(held)cards+='<g data-rad-card="'+k+'" data-arc-slot="'+k+'" data-rad-owned="1" class="arc-radial-hit" role="button" tabindex="0" aria-label="'+arcEscape(roster[i].name+' '+(gold?'골드 카드':roster[i].topics?.[k-1]||'수집 카드'))+'"><polygon class="rad-card-edge" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><polygon class="rad-card-top" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><g class="rad-card-face"><rect width="62" height="112" rx="1.2" fill="#182835" stroke="#9c927b" stroke-width=".45"/><g class="rad-art-front">'+arcSvgArt(i,k)+'</g><g class="rad-art-back">'+arcSvgBack(i,k)+'</g></g></g>';
   }
-  return '<svg class="arc-radial-svg" viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" aria-label="방사형 회전 카드 수납장"><defs><linearGradient id="radMetal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15242c"/><stop offset=".22" stop-color="#607b7e"/><stop offset=".46" stop-color="#a8b7a7"/><stop offset=".6" stop-color="#435c62"/><stop offset="1" stop-color="#12232d"/></linearGradient><linearGradient id="radGold"><stop stop-color="#896026"/><stop offset=".32" stop-color="#f6dca0"/><stop offset=".64" stop-color="#b68947"/><stop offset="1" stop-color="#f8df9a"/></linearGradient><linearGradient id="radPaper"><stop stop-color="#c3ab80"/><stop offset=".5" stop-color="#f0e2c6"/><stop offset="1" stop-color="#988b74"/></linearGradient><radialGradient id="radTop" cx=".42" cy=".35" r=".75"><stop stop-color="'+(theme==='in'?'#755d50':theme==='ug'?'#65715b':'#54726e')+'"/><stop offset=".65" stop-color="'+(theme==='in'?'#40323c':theme==='ug'?'#35483f':'#223d4b')+'"/><stop offset="1" stop-color="#102833"/></radialGradient><radialGradient id="radShadow"><stop stop-color="#000" stop-opacity=".65"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="radBackPattern" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6L6 0M-3 3L3 -3M3 9L9 3" stroke="#d6ceaa" stroke-opacity=".13" stroke-width=".4"/></pattern></defs><g class="rad-model"><ellipse class="rad-shadow" cx="0" cy="0" rx="156" ry="24" fill="url(#radShadow)"/><g class="rad-deck" data-rad-rotator="1"><ellipse cx="0" cy="13" rx="148" ry="62.16" fill="#14232c" stroke="#617573" stroke-width="1"/><path d="M-148 0 A148 62.16 0 0 0 148 0 L148 13 A148 62.16 0 0 1 -148 13Z" fill="url(#radMetal)" stroke="#b4b6a0" stroke-width=".6"/><ellipse rx="148" ry="62.16" fill="url(#radTop)" stroke="url(#radGold)" stroke-width="1.4"/><ellipse rx="140" ry="58.8" fill="none" stroke="#b9d0c4" stroke-opacity=".38" stroke-width=".7"/><ellipse rx="132" ry="55.44" fill="none" stroke="#9eaa96" stroke-opacity=".25" stroke-width=".65"/><g class="rad-motif" color="#c5c8a8" opacity=".55"><svg x="-32" y="-32" width="64" height="64" viewBox="0 0 100 100">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</svg></g><ellipse rx="37" ry="15.54" fill="none" stroke="#c6bd91" stroke-width=".7"/><g class="rad-ticks">'+Array.from({length:48},(_,j)=>'<line data-rad-tick="'+j+'" stroke="'+(j%6===0?'#d8cfaa':'#9eada7')+'" stroke-opacity="'+(j%6===0?.75:.35)+'" stroke-width=".6"/>').join('')+'</g></g><g class="rad-grooves">'+grooves+'</g><g class="rad-cards">'+cards+'</g></g></svg>';
+  return '<svg class="arc-radial-svg" viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" aria-label="방사형 회전 카드 수납장"><defs><linearGradient id="radMetal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15242c"/><stop offset=".22" stop-color="#607b7e"/><stop offset=".46" stop-color="#a8b7a7"/><stop offset=".6" stop-color="#435c62"/><stop offset="1" stop-color="#12232d"/></linearGradient><linearGradient id="radGold"><stop stop-color="#896026"/><stop offset=".32" stop-color="#f6dca0"/><stop offset=".64" stop-color="#b68947"/><stop offset="1" stop-color="#f8df9a"/></linearGradient><linearGradient id="radPaper"><stop stop-color="#c3ab80"/><stop offset=".5" stop-color="#f0e2c6"/><stop offset="1" stop-color="#988b74"/></linearGradient><radialGradient id="radTop" cx=".42" cy=".35" r=".75"><stop stop-color="'+(theme==='in'?'#755d50':theme==='ug'?'#65715b':'#54726e')+'"/><stop offset=".65" stop-color="'+(theme==='in'?'#40323c':theme==='ug'?'#35483f':'#223d4b')+'"/><stop offset="1" stop-color="#102833"/></radialGradient><radialGradient id="radShadow"><stop stop-color="#000" stop-opacity=".65"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="radBackPattern" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6L6 0M-3 3L3 -3M3 9L9 3" stroke="#d6ceaa" stroke-opacity=".13" stroke-width=".4"/></pattern></defs><g class="rad-model"><ellipse class="rad-shadow" cx="0" cy="0" rx="120" ry="24" fill="url(#radShadow)"/><g class="rad-deck" data-rad-rotator="1"><ellipse cx="0" cy="7" rx="112" ry="47.04" fill="#14232c" stroke="#617573" stroke-width="1"/><path d="M-112 0 A112 47.04 0 0 0 112 0 L112 7 A112 47.04 0 0 1 -112 7Z" fill="url(#radMetal)" stroke="#b4b6a0" stroke-width=".6"/><ellipse rx="112" ry="47.04" fill="url(#radTop)" stroke="url(#radGold)" stroke-width="1.4"/><ellipse rx="108" ry="45.36" fill="none" stroke="#b9d0c4" stroke-opacity=".38" stroke-width=".7"/><ellipse rx="103" ry="43.26" fill="none" stroke="#9eaa96" stroke-opacity=".25" stroke-width=".65"/><g class="rad-motif" color="#c5c8a8" opacity=".55"><svg x="-11" y="-11" width="22" height="22" viewBox="0 0 100 100">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</svg></g><ellipse rx="12" ry="5.04" fill="none" stroke="#c6bd91" stroke-width=".7"/><g class="rad-ticks">'+Array.from({length:48},(_,j)=>'<line data-rad-tick="'+j+'" stroke="'+(j%6===0?'#d8cfaa':'#9eada7')+'" stroke-opacity="'+(j%6===0?.75:.35)+'" stroke-width=".6"/>').join('')+'</g></g><g class="rad-grooves">'+grooves+'</g><g class="rad-cards">'+cards+'</g></g></svg>';
  }
  function collectionHTML(){
   const pages=arcPages();
@@ -154,7 +165,7 @@
   arcPage=Math.max(0,Math.min(pages.length-1,arcPage));
   const i=pages[arcPage],ch=roster[i],theme=arcThemes[i]||['neutral',ch.country,'#d9c49d','#8db1a3'];
   return '<div class="arc-root arc-theme-'+theme[0]+'" style="--arc-metal:'+theme[2]+';--arc-accent:'+theme[3]+'">'+
-   (arcQA?'<div class="arc-qa" data-arc-page-band>디자인 검수 · 예시 카드</div>':'')+
+   (arcQA?'<div class="arc-qa" data-arc-page-band>디자인 검수 · 사진 일부 미확정</div>':'')+
    '<div class="arc-page-band" data-arc-page-band><button class="arc-page-arrow" data-home-action="arc-prev" aria-label="이전 수납장" '+(arcPage===0?'disabled':'')+'>‹</button><div class="arc-page-info"><span class="arc-page-dots">'+pages.map((_,j)=>'<i class="'+(j===arcPage?'active':'')+'"></i>').join('')+'</span><span class="arc-count">'+arcCount(i)+' / 8</span></div><button class="arc-page-arrow" data-home-action="arc-next" aria-label="다음 수납장" '+(arcPage===pages.length-1?'disabled':'')+'>›</button></div>'+
    '<div class="arc-wheel arc-radial-wheel" tabindex="0" aria-label="수납장 좌우 회전, 카드 위로 꺼내기, 배경 좌우 페이지 전환"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div>'+arcRadialHTML(i,theme[0])+'</div>'+
    '<div class="arc-page-bottom" data-arc-page-band>'+arcProfile(i)+'</div><div class="arc-viewer" hidden></div></div>';
@@ -165,22 +176,22 @@
  function arcDraw(){
   const wheel=content.querySelector('.arc-wheel'),svg=wheel?.querySelector('.arc-radial-svg');if(!svg)return;
   const w=wheel.clientWidth,h=wheel.clientHeight;if(w<2||h<2)return;
-  const scale=Math.min(w/330,h/278),cx=w*.5,cy=h*.5+scale*35;
+  const scale=Math.min(w/242,h/226),cx=w*.5,cy=h*.5+scale*37;
   svg.setAttribute('viewBox','0 0 '+w+' '+h);
   svg.querySelector('.rad-model').setAttribute('transform','translate('+cx+' '+cy+') scale('+scale+')');
-  svg.querySelector('.rad-shadow').setAttribute('cy','68');
+  svg.querySelector('.rad-shadow').setAttribute('cy','52');
   svg.querySelector('.rad-motif').setAttribute('transform','scale(1 '+RAD.sin+') rotate('+(arcYaw*180/Math.PI)+')');
   const poly=(p,arr)=>arr.map(v=>p(...v).map(x=>x.toFixed(3)).join(',')).join(' ');
   const geom=k=>radialGeometry(arcYaw+(k-1)*arcStep,0,0);
   for(const e of svg.querySelectorAll('[data-rad-tick]')){
    const a=arcYaw+Number(e.dataset.radTick)*arcTau/48,g=radialGeometry(a,0,0);
-   const q=g.p(135),r=g.p(139);
+   const q=g.p(105),r=g.p(108);
    e.setAttribute('x1',q[0]);e.setAttribute('y1',q[1]);e.setAttribute('x2',r[0]);e.setAttribute('y2',r[1]);
   }
   for(const e of svg.querySelectorAll('[data-rad-groove]')){
    const k=Number(e.dataset.radGroove),{p}=geom(k),t=k===8?5:3.1;
    e.querySelector('.rad-groove-rim').setAttribute('points',poly(p,[[RAD.inner,0,-t],[RAD.outer,0,-t],[RAD.outer,0,t],[RAD.inner,0,t]]));
-   e.querySelector('.rad-groove-hole').setAttribute('points',poly(p,[[58.5,0,-1.25],[123.5,0,-1.25],[123.5,0,1.25],[58.5,0,1.25]]));
+   e.querySelector('.rad-groove-hole').setAttribute('points',poly(p,[[17,0,-1.25],[105,0,-1.25],[105,0,1.25],[17,0,1.25]]));
   }
   const layer=svg.querySelector('.rad-cards'),ordered=[...layer.querySelectorAll('[data-rad-card]')].map(e=>({e,k:Number(e.dataset.radCard),g:geom(Number(e.dataset.radCard))})).sort((a,b)=>a.g.depth-b.g.depth);
   for(const {e,k,g} of ordered){
@@ -188,7 +199,7 @@
    const start=front?hi:lo,sign=front?-1:1,side=front?1:-1;
    const pos=p(start,H,side*t);
    const face=e.querySelector('.rad-card-face');
-   face.setAttribute('transform','matrix('+(Math.abs(sn)).toFixed(6)+' '+(sign*cs*RAD.sin).toFixed(6)+' 0 '+RAD.cos.toFixed(6)+' '+pos[0].toFixed(3)+' '+pos[1].toFixed(3)+')');
+   face.setAttribute('transform','matrix('+(Math.abs(sn)*(hi-lo)/62).toFixed(6)+' '+(sign*cs*RAD.sin*(hi-lo)/62).toFixed(6)+' 0 '+(RAD.cos*H/112).toFixed(6)+' '+pos[0].toFixed(3)+' '+pos[1].toFixed(3)+')');
    face.setAttribute('visibility',Math.abs(sn)<.006?'hidden':'visible');
    e.querySelector('.rad-art-front').setAttribute('visibility',front?'visible':'hidden');
    e.querySelector('.rad-art-back').setAttribute('visibility',front?'hidden':'visible');
