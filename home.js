@@ -283,7 +283,7 @@
   }
   const viewer=content.querySelector('.arc-viewer');
   viewer?.addEventListener('click',e=>{if(arcReturning||performance.now()-arcFlipAt<350)return;if(e.target.closest('.arc-view-card')){arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}else if(e.target===viewer)arcClose();});
-  viewer?.addEventListener('pointerdown',e=>{if(e.target.closest('.arc-view-card')){arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};try{viewer.setPointerCapture(e.pointerId)}catch(_){}}});
+  viewer?.addEventListener('pointerdown',e=>{if(e.target.closest('.arc-view-card')){arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};try{e.target.closest('.arc-view-card').setPointerCapture(e.pointerId)}catch(_){}}});
   viewer?.addEventListener('pointerup',e=>{
    if(arcPageDrag?.id!==e.pointerId)return;
    const dx=e.clientX-arcPageDrag.x,dy=e.clientY-arcPageDrag.y;arcPageDrag=null;
