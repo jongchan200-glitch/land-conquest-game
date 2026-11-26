@@ -291,3 +291,26 @@
 .arc-viewing .home-drawer-top{display:none}
 .arc-view-close{top:12px;right:12px;background:#d6eaff0c;border:1px solid #c0d8e050;color:#eaf4f7}
 @media(max-height:570px){.arc-page-bottom{min-height:43px;padding:3px 4px}.arc-name strong{font-size:15px}.arc-engraving span{font-size:9px}.arc-view-card{width:min(94%,calc((100dvh - 65px)*var(--arc-ratio,.75)),520px)}}
+
+/* v0.2.38 — exact radial planes projected from shared 3D coordinates. */
+.arc-radial-wheel{perspective:none;touch-action:none;isolation:isolate;cursor:default;overflow:hidden}
+.arc-radial-svg{position:absolute;inset:0;display:block;width:100%;height:100%;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.arc-radial-hit,[data-rad-rotator]{cursor:grab}
+.arc-radial-hit:active,[data-rad-rotator]:active{cursor:grabbing}
+.arc-radial-hit:focus-visible{outline:1px solid #f3dfae}
+.rad-art-front,.rad-art-back{pointer-events:none}
+.rad-card-face{pointer-events:all}
+.rad-card-edge,.rad-card-top{pointer-events:all}
+.arc-radial-wheel .arc-gallery-halo{top:44%;width:92%;opacity:.9}
+.arc-root:before{background:repeating-linear-gradient(90deg,transparent 0 73px,#c4e4f007 74px,transparent 75px 146px),linear-gradient(125deg,transparent 12%,#d4f6ff0a 12.2%,transparent 13%,transparent 75%,#d6b5ff0b 75.2%,transparent 76%)}
+.arc-page-band,.arc-page-bottom{touch-action:none}
+.arc-view-card{animation:radCardLift .38s cubic-bezier(.2,.8,.2,1) both}
+.arc-view-object{animation:none!important;transition:transform .35s ease;transform-style:preserve-3d}
+.arc-viewing .arc-wheel,.arc-viewing .arc-page-band,.arc-viewing .arc-page-bottom,.arc-viewing .arc-qa{visibility:visible}
+.arc-viewing .arc-viewer{z-index:500}
+.arc-viewer.arc-returning{animation:radViewerOut .30s ease both;pointer-events:none}
+.arc-returning .arc-view-card{animation:radCardReturn .30s ease-in both}
+@keyframes radCardLift{from{transform:translateY(28%) rotateY(-35deg) scale(.48);opacity:.6}to{transform:translateY(0) rotateY(0) scale(1);opacity:1}}
+@keyframes radCardReturn{from{transform:translateY(0) scale(1);opacity:1}to{transform:translateY(27%) rotateY(-32deg) scale(.42);opacity:0}}
+@keyframes radViewerOut{from{opacity:1}to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.arc-view-card,.arc-returning .arc-view-card,.arc-viewer.arc-returning{animation:none}}
