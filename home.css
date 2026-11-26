@@ -320,3 +320,6 @@
 
 /* v040 Uganda gallery: restrained dark hardwood and brass */
 .arc-theme-ug{--arc-bg-a:#533b28;--arc-bg-b:#241b15;--arc-bg-c:#100d0a;background:radial-gradient(ellipse at 50% 45%,#5a3d2470,transparent 65%),linear-gradient(155deg,#281e17,#0d1519 80%)}.arc-theme-ug .arc-gallery-halo{background:radial-gradient(ellipse,#d6a05628,transparent 65%)}.arc-theme-ug .arc-profile{color:#f0ddbc}.arc-theme-ug .arc-view-card .arc-amara-front{background:transparent!important}.arc-amara-front>svg{width:100%;height:100%;display:block}.arc-theme-ug .arc-face-back{background:repeating-linear-gradient(45deg,#26333b 0 5px,#18252d 5px 10px);border:2px solid #bca477}.arc-theme-ug .arc-face-back.is-gold{background:repeating-linear-gradient(45deg,#8f652e 0 5px,#4c321b 5px 10px);border:3px double #ffe5a0;box-shadow:inset 0 0 28px #e4b65766}
+
+/* v042: use complete card artwork without a second frame. */
+.arc-amara-front>.amara-card-image{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;border:0;border-radius:0}

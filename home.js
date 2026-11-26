@@ -67,7 +67,7 @@
  // Collection v0.2.36. One circular display for each discovered person.
  // QA samples are view-only, and never written to the game's album.
  const arcQA=new URLSearchParams(location.search).get('collection-preview')==='1';
- const arcSample=[[1,2,4,8],[1,3,5],[1,2,3,4,5,6,7,8]];
+ const arcSample=Array.from({length:3},()=>[1,2,3,4,5,6,7,8]);
  let arcYaw=0,arcPage=0,arcStop=0,arcFrame=0,arcDrag=null,arcFlip=false,arcPageDrag=null,arcAnimating=false,arcFlipAt=-999;
  const arcStep=Math.PI/4,arcTau=Math.PI*2;
  const arcThemes=[
@@ -106,7 +106,7 @@
   return 2/3;
  }
  function arcCard(i,k){
-  if(i===2)return '<div class="arc-card-face arc-face-front arc-amara-front">'+amaraFront(k)+'</div><div class="arc-card-face arc-face-back '+(k===8?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark('ug')+'<b>'+(k===8?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
+  if(i===2)return '<div class="arc-card-face arc-face-front arc-amara-front"><img class="amara-card-image" src="'+amaraCardPath(k)+'" alt="아마라 '+k+'번 카드" draggable="false"></div><div class="arc-card-face arc-face-back '+(k===8?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark('ug')+'<b>'+(k===8?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
   const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral',raw=k===1&&!!ch.image,source=!raw&&!!ch.previewSheet;
   const art=arcArt(ch,k);
   return '<div class="arc-card-face arc-face-front '+(source?'arc-source-face':raw?'arc-portrait-face':'arc-unmade-face')+' '+(gold?'is-gold':'')+'">'+art+(raw?'<span class="arc-portrait-name">'+arcEscape(ch.name)+'</span>':'')+'</div>'+
@@ -135,16 +135,8 @@
   if(ch.previewSheet&&r&&size)return '<svg x="0" y="0" width="62" height="112" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid meet" overflow="hidden"><image href="'+arcEscape(ch.previewSheet)+'" x="0" y="0" width="'+size[0]+'" height="'+size[1]+'"/></svg>';
   return '<path d="M31 36L45 56 31 76 17 56Z" fill="none" stroke="#cfc49d" stroke-width=".8"/>';
  }
- const amaraProfiles=[
- ['우간다 · 16세 · 학생','기본 프로필'],['동화책 읽기 · 텃밭 가꾸기','취미'],['명랑하고 다정함 · 친화력','성격'],['넉넉하지 않지만 화목한 가정','가족'],['요리 · 요리 메모','취미'],['맡은 일을 끝까지 책임짐','장점 · 공동부엌 봉사'],['공부와 휴식을 미루기도 함','고민 · 부탁을 거절하기 어려움'],['작은 동네 식당 겸 공부방','장래희망']
- ];
- function amaraFront(k){
-  const gold=k===8,profile=amaraProfiles[k-1],ch=roster[2];
-  // Legacy contact sheet has photo-only images. Crop each separately in a bounded viewport.
-  const r=ch.previewRects[k-1],sz=ch.previewSize;
-  const image=k===3?'<image href="./assets/cards/amara-master-v1.svg" x="0" y="0" width="56" height="83" preserveAspectRatio="xMidYMid slice"/>':'<svg width="56" height="83" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid slice" overflow="hidden"><image href="'+ch.previewSheet+'" width="'+sz[0]+'" height="'+sz[1]+'"/></svg>';
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 62 112" width="62" height="112" preserveAspectRatio="none"><rect width="62" height="112" rx="2" fill="'+(gold?'#52381a':'#122c4a')+'"/><rect x="1" y="1" width="60" height="110" rx="1.6" fill="none" stroke="'+(gold?'#ffe4a0':'#bda56c')+'" stroke-width="1.2"/><rect x="2.7" y="2.7" width="56.6" height="106.6" rx=".7" fill="none" stroke="#e2c88a" stroke-width=".35"/><svg x="3" y="12" width="56" height="83" overflow="hidden">'+image+'</svg><path d="M3 12H59V95H3Z" fill="none" stroke="#dfc78a" stroke-width=".6"/><path d="M3 3H59V11H3Z" fill="'+(gold?'#795722':'#142e49')+'"/><text x="6" y="8.4" fill="#f9e7bc" font-size="4.5" font-weight="bold">'+(gold?'GOLD':String(k).padStart(2,'0'))+'</text><text x="56" y="8.3" text-anchor="end" fill="#f5e6ca" font-size="4.4" font-weight="bold">아마라 · AMARA</text><rect x="3" y="96" width="56" height="13" fill="'+(gold?'#725321':'#193751')+'"/><text x="31" y="100" text-anchor="middle" fill="#f8db99" font-size="3.5" font-weight="bold">'+arcEscape(profile[1])+'</text><text x="31" y="105.1" text-anchor="middle" fill="#fff2d9" font-size="'+(profile[0].length>15?'2.65':'3.3')+'">'+arcEscape(profile[0])+'</text>'+(gold?'<path d="M2 13L7 8M55 8L60 13M2 95L7 100M55 100L60 95" stroke="#fff1b2" stroke-width="1.5"/>':'')+'</svg>';
- }
+ const amaraCardPath=k=>'./assets/cards/amara-v042/amara_'+String(k).padStart(2,'0')+'.webp';
+ function amaraFront(k){return '<image href="'+amaraCardPath(k)+'" x="0" y="0" width="62" height="112" preserveAspectRatio="none"/>'}
  function arcSvgArt(i,k){return i===2?amaraFront(k):arcOldSvgArt(i,k)}
  function arcSvgBack(i,k){
   const gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
@@ -412,5 +404,5 @@
  window.__collectionTest={rosterCount:()=>arcPages().length,owned:totalOwned,open:()=>openPanel('album'),select:(i)=>{const j=arcPages().indexOf(i);if(j>=0){arcPage=j;arcYaw=0;renderPanel('album');}},snapshot:()=>({pages:arcPages(),page:arcPage,front:arcFront(),qa:arcQA,owned:totalOwned(),yaw:arcYaw})};
  window.__landHomeTest={getOpen:()=>window.__homeIsOpen,panel:()=>selectedPanel,stats:()=>({best,level:state.level,coins:state.coins,badge:previewBadge(),modelActive:!!window.home3D?.active}),openPanel,enterGame:leaveHome,returnHome:openHome};
  openHome();
- if(arcQA)openPanel('album');
+ if(arcQA){openPanel('album');if(new URLSearchParams(location.search).get('person')==='amara')window.__collectionTest.select(2);}
 })();
