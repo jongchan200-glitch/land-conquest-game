@@ -100,9 +100,16 @@
   if(theme==='ug')return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M50 12L88 50 50 88 12 50ZM50 23L77 50 50 77 23 50ZM50 34L66 50 50 66 34 50Z"/><path d="M12 50L24 38 36 50 24 62ZM88 50L76 38 64 50 76 62ZM50 12L38 24 50 36 62 24ZM50 88L38 76 50 64 62 76Z"/></g></svg>';
   return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="50" cy="50" r="34"/><path d="M50 12L88 50 50 88 12 50ZM50 26L74 50 50 74 26 50Z"/><circle cx="50" cy="50" r="8"/></g></svg>';
  }
+ // Existing preview sheets already contain their own frames and profile text.
+ // Display that original card face exactly once, at its native crop ratio.
+ function arcRatio(i,k){
+  const ch=roster[i],r=ch.previewRects?.[k-1];
+  return k===1&&ch.image ? .75 : (r&&r[3]>0 ? r[2]/r[3] : .75);
+ }
  function arcCard(i,k){
-  const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
-  return '<div class="arc-card-face arc-face-front '+(gold?'is-gold':'')+'"><div class="arc-photo">'+arcArt(ch,k)+'</div><div class="arc-card-caption"><strong>'+arcEscape(ch.name)+'</strong><span>'+arcEscape(ch.english)+(gold?' · GOLD':'')+'</span></div><i class="arc-corner a"></i><i class="arc-corner b"></i><i class="arc-corner c"></i><i class="arc-corner d"></i></div>'+
+  const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral',raw=k===1&&!!ch.image,source=!raw&&!!ch.previewSheet;
+  const art=arcArt(ch,k);
+  return '<div class="arc-card-face arc-face-front '+(source?'arc-source-face':raw?'arc-portrait-face':'arc-unmade-face')+' '+(gold?'is-gold':'')+'">'+art+(raw?'<span class="arc-portrait-name">'+arcEscape(ch.name)+'</span>':'')+'</div>'+
    '<div class="arc-card-face arc-face-back '+(gold?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark(theme)+'<b>'+(gold?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
  }
  function arcProfile(i){
@@ -118,12 +125,12 @@
   const i=pages[arcPage],ch=roster[i],theme=arcThemes[i]||['neutral',ch.country,'#d9c49d','#8db1a3'],slots=[];
   for(let k=1;k<=8;k++){
    const held=arcHeld(i,k),gold=k===8;
-   slots.push('<div class="arc-slot '+(gold?'arc-gold-slot':'')+'" data-arc-slot="'+k+'" role="'+(held?'button':'img')+'" tabindex="'+(held?'0':'-1')+'" aria-label="'+arcEscape(ch.name)+' '+(gold?'골드 카드':held?(ch.topics?.[k-1]||'수집 카드'):'빈 슬롯')+'"><div class="arc-groove"><i></i>'+(gold?'<b>✦</b>':'')+'</div>'+(held?'<div class="arc-card-object">'+arcCard(i,k)+'</div>':'')+'</div>');
+   slots.push('<div class="arc-slot '+(gold?'arc-gold-slot':'')+'" data-arc-slot="'+k+'" role="'+(held?'button':'img')+'" tabindex="'+(held?'0':'-1')+'" aria-label="'+arcEscape(ch.name)+' '+(gold?'골드 카드':held?(ch.topics?.[k-1]||'수집 카드'):'빈 슬롯')+'"><div class="arc-groove"><i></i>'+(gold?'<b>✦</b>':'')+'</div>'+(held?'<div class="arc-card-object" style="--arc-ratio:'+arcRatio(i,k)+'">'+arcCard(i,k)+'</div>':'')+'</div>');
   }
   return '<div class="arc-root arc-theme-'+theme[0]+'" style="--arc-metal:'+theme[2]+';--arc-accent:'+theme[3]+'">'+
    (arcQA?'<div class="arc-qa">디자인 검수 · 예시 카드</div>':'')+
    '<div class="arc-page-band" data-arc-page-band><button class="arc-page-arrow" data-home-action="arc-prev" aria-label="이전 수납장" '+(arcPage===0?'disabled':'')+'>‹</button><div class="arc-page-info"><span class="arc-page-dots">'+pages.map((_,j)=>'<i class="'+(j===arcPage?'active':'')+'"></i>').join('')+'</span><span class="arc-count">'+arcCount(i)+' / 8</span></div><button class="arc-page-arrow" data-home-action="arc-next" aria-label="다음 수납장" '+(arcPage===pages.length-1?'disabled':'')+'>›</button></div>'+
-   '<div class="arc-wheel" tabindex="0" aria-label="회전식 카드 수납장, 좌우로 돌리기"><div class="arc-wheel-glow"></div><div class="arc-pedestal"><div class="arc-plinth"></div><div class="arc-plinth-band"><span></span><span></span><span></span></div><div class="arc-disc"><div class="arc-disc-rim"></div>'+arcMark(theme[0])+'</div></div><div class="arc-orbit">'+slots.join('')+'</div></div>'+
+   '<div class="arc-wheel" tabindex="0" aria-label="회전식 카드 수납장, 좌우로 돌리기"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div><div class="arc-floor-shadow"></div><div class="arc-scene"><div class="arc-orbit"><div class="arc-deck" aria-hidden="true">'+Array.from({length:12},(_,j)=>'<i class="arc-deck-layer" style="--layer:'+j+'"></i>').join('')+'<div class="arc-deck-top"><div class="arc-deck-inner"></div>'+arcMark(theme[0])+'</div>'+Array.from({length:48},(_,j)=>'<i class="arc-edge-tile" style="--edge-angle:'+j*7.5+'deg;--edge-j:'+j+'"></i>').join('')+'</div>'+slots.join('')+'</div></div></div>'+
    '<div class="arc-page-bottom" data-arc-page-band>'+arcProfile(i)+'</div><div class="arc-viewer" hidden></div></div>';
  }
  function arcCancel(){
@@ -131,14 +138,23 @@
  }
  function arcDraw(){
   const wheel=content.querySelector('.arc-wheel');if(!wheel)return;
-  const w=wheel.clientWidth,h=wheel.clientHeight;
-  const r=Math.min(w*.29,112),d=Math.min(h*.073,30);
+  const w=wheel.clientWidth,h=wheel.clientHeight;if(w<2||h<2)return;
+  // All objects share the same 3D origin and camera. A slot is a tangent
+  // to the circle: card width is below the non-intersection limit 2R*tan(22.5°).
+  const r=Math.min(w*.325,142,h*.265),cardW=r*.74,deckR=r*1.17;
+  const maxCardH=cardW/.67,foot=Math.min(h*.70,Math.max(h*.54,(h+maxCardH*.84)/2-7));
   wheel.style.setProperty('--arc-radius',r+'px');
+  wheel.style.setProperty('--arc-card-w',cardW+'px');
+  wheel.style.setProperty('--arc-deck-size',(deckR*2)+'px');
+  wheel.style.setProperty('--arc-deck-radius',deckR+'px');
+  wheel.style.setProperty('--arc-edge-width',(2*Math.PI*deckR/48+.65)+'px');
+  wheel.style.setProperty('--arc-origin-y',foot+'px');
+  const orbit=wheel.querySelector('.arc-orbit');
+  if(orbit)orbit.style.transform='rotateY('+arcYaw+'rad)';
   for(const el of wheel.querySelectorAll('[data-arc-slot]')){
-   const k=Number(el.dataset.arcSlot),a=arcYaw+(k-1)*arcStep,sn=Math.sin(a),cs=Math.cos(a);
-   const depth=(cs+1)/2;
-   el.style.transform='translate3d('+(sn*r).toFixed(2)+'px,'+(cs*d).toFixed(2)+'px,'+(cs*r*.72).toFixed(2)+'px) rotateY('+a+'rad)';
-   el.style.zIndex=String(20+Math.round(depth*100));
+   const k=Number(el.dataset.arcSlot),a=(k-1)*arcStep;
+   el.style.transform='translate3d('+(Math.sin(a)*r).toFixed(3)+'px,0px,'+(Math.cos(a)*r).toFixed(3)+'px) rotateY('+a+'rad)';
+   el.style.zIndex='auto';
    el.classList.toggle('arc-front-slot',k===arcFront());
   }
  }
@@ -147,7 +163,7 @@
   const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
   if(i===undefined||!viewer||!arcHeld(i,k))return;
   selectedCard=k;arcFlip=false;arcFlipAt=-999;viewer.classList.remove('arc-flipped');
-  viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
+  viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" style="--arc-ratio:'+arcRatio(i,k)+'" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
   viewer.hidden=false;drawer.classList.add('arc-viewing');
   viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
  }
@@ -159,10 +175,10 @@
   clearTimeout(arcStop);cancelAnimationFrame(arcFrame);
   const from=arcYaw,delta=target-from,begin=performance.now();arcAnimating=true;
   const frame=t=>{
-   const q=Math.min(1,Math.max(0,(t-begin)/260));arcYaw=from+delta*(1-Math.pow(1-q,3));arcDraw();
+   const q=Math.min(1,Math.max(0,(t-begin)/420));arcYaw=from+delta*(1-Math.pow(1-q,3));arcDraw();
    if(q<1){arcFrame=requestAnimationFrame(frame);return;}
    arcYaw=target;arcAnimating=false;arcDraw();
-   if(open)arcStop=setTimeout(()=>arcShow(arcFront()),380);
+   if(open)arcStop=setTimeout(()=>arcShow(arcFront()),430);
   };
   arcFrame=requestAnimationFrame(frame);
  }
@@ -177,7 +193,7 @@
   wheel.addEventListener('pointerdown',e=>{
    if(e.button>0||arcDrag)return;
    clearTimeout(arcStop);cancelAnimationFrame(arcFrame);arcAnimating=false;
-   arcDrag={id:e.pointerId,x:e.clientX,y:e.clientY,from:arcYaw,moved:false,slot:e.target.closest('[data-arc-slot]')?.dataset.arcSlot};
+   arcDrag={id:e.pointerId,x:e.clientX,y:e.clientY,from:arcYaw,moved:false,lastX:e.clientX,lastT:performance.now(),velocity:0,slot:e.target.closest('[data-arc-slot]')?.dataset.arcSlot};
    try{wheel.setPointerCapture(e.pointerId);}catch(_){}
   });
   wheel.addEventListener('pointermove',e=>{
@@ -185,13 +201,14 @@
    const dx=e.clientX-arcDrag.x,dy=e.clientY-arcDrag.y;
    if(Math.abs(dx)>6&&Math.abs(dx)>Math.abs(dy)*.7)arcDrag.moved=true;
    if(!arcDrag.moved)return;
+   const now=performance.now(),elapsed=Math.max(8,now-arcDrag.lastT);arcDrag.velocity=arcDrag.velocity*.45+((e.clientX-arcDrag.lastX)/elapsed)*.55;arcDrag.lastX=e.clientX;arcDrag.lastT=now;
    arcYaw=arcDrag.from+dx*arcTau/Math.max(360,wheel.clientWidth*1.35);arcDraw();e.preventDefault();
   });
   const end=e=>{
    if(!arcDrag||e.pointerId!==arcDrag.id)return;
    const d=arcDrag;arcDrag=null;
    if(e.type!=='pointerup'){arcSettle(Math.round(arcYaw/arcStep)*arcStep,false);return;}
-   if(d.moved){arcSettle(Math.round(arcYaw/arcStep)*arcStep);return;}
+   if(d.moved){const v=performance.now()-d.lastT<100?d.velocity:0,glide=Math.max(-arcStep,Math.min(arcStep,v*.26));arcSettle(Math.round((arcYaw+glide)/arcStep)*arcStep);return;}
    if(d.slot){
     const k=Number(d.slot),base=-(k-1)*arcStep;
     const target=base+Math.round((arcYaw-base)/arcTau)*arcTau;
