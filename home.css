@@ -317,3 +317,6 @@
 
 /* v039 card-focused proportions */
 .arc-amara-front{padding:0!important;border:0!important;background:#122c4a!important;display:block}.arc-amara-front>svg{width:100%;height:100%;display:block}.arc-view-card{width:min(94%,calc((100dvh - 94px)*.666667),520px);aspect-ratio:2/3}.arc-view-card .arc-amara-front{border:0;box-shadow:none}.arc-radial-wheel .arc-gallery-halo{width:86%;opacity:.6}.arc-theme-ug{--arc-bg-a:#3c4d48;--arc-bg-b:#142e3c;--arc-bg-c:#091a28}
+
+/* v040 Uganda gallery: restrained dark hardwood and brass */
+.arc-theme-ug{--arc-bg-a:#533b28;--arc-bg-b:#241b15;--arc-bg-c:#100d0a;background:radial-gradient(ellipse at 50% 45%,#5a3d2470,transparent 65%),linear-gradient(155deg,#281e17,#0d1519 80%)}.arc-theme-ug .arc-gallery-halo{background:radial-gradient(ellipse,#d6a05628,transparent 65%)}.arc-theme-ug .arc-profile{color:#f0ddbc}.arc-theme-ug .arc-view-card .arc-amara-front{background:transparent!important}.arc-amara-front>svg{width:100%;height:100%;display:block}.arc-theme-ug .arc-face-back{background:repeating-linear-gradient(45deg,#26333b 0 5px,#18252d 5px 10px);border:2px solid #bca477}.arc-theme-ug .arc-face-back.is-gold{background:repeating-linear-gradient(45deg,#8f652e 0 5px,#4c321b 5px 10px);border:3px double #ffe5a0;box-shadow:inset 0 0 28px #e4b65766}
