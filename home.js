@@ -105,25 +105,28 @@
  function arcRatio(i,k){
   return 2/3;
  }
+ const arcProfiles=[{"meta":["유해나","18세","한국","162~163cm"],"sent":["5월 17일생으로 혈액형은 A형이다.","화목고등학교 음악부에서 피아노를 연주한다.","떡볶이와 치킨, 딸기우유를 좋아하고 벌레를 무서워한다.","피아노와 노래를 즐기며 영어에 강하지만 수학은 어려워한다.","한옥마을과 바닷가를 좋아하고 할머니의 목걸이를 아낀다.","인형에게 하루 이야기를 들려주고 잠드는 습관이 있다.","다정하고 유머 있는 사람을 좋아하지만 승부욕도 강하다.","직접 만든 노래로 사람들에게 힘을 주는 가수를 꿈꾼다."],"full":"화목고등학교 음악부에서 피아노와 노래를 즐긴다. 영어에 강하지만 수학은 어려워하고, 떡볶이와 딸기우유를 좋아한다. 할머니의 목걸이를 소중히 여기며 승부욕도 강하다. 언젠가 직접 만든 노래로 누군가에게 힘을 주는 가수가 되고 싶다."},{"meta":["아니카","20세","인도","157cm"],"sent":["밝고 따뜻하며 관찰력이 좋다.","카페 탐방과 아이스커피, 셀카를 즐긴다.","인디 팝과 라이브 공연, 저녁 산책을 좋아한다.","보라색과 도시적인 패션을 즐긴다.","여자 크리켓을 응원하며 활동적이다.","가족과 함께하는 축제와 인도 가정식을 좋아한다.","산과 자연을 여행하며 사진과 메모를 남긴다.","패션 사진작가가 되어 자신의 화보집을 만드는 것이 꿈이다."],"full":"밝고 따뜻하며 호기심과 관찰력이 뛰어나다. 카페 탐방, 인디 팝과 라이브 공연, 보라색 패션을 즐기며 여자 크리켓을 응원한다. 가족과 축제를 소중히 여기고 여행의 순간을 사진으로 남긴다. 언젠가 자신의 화보집을 만드는 패션 사진작가가 되고 싶다."},{"meta":["아마라","16세","우간다",""],"sent":["우간다의 가상 소도시에서 자란 학생이다.","동생들에게 동화책을 읽어주고 텃밭을 가꾼다.","명랑하고 활발하며 곤란한 사람에게 먼저 다가간다.","넉넉하지 않지만 서로 챙기는 화목한 가족과 산다.","요리와 요리 메모 쓰기를 즐긴다.","주말에는 공동부엌과 나눔터에서 책임감 있게 봉사한다.","부탁을 거절하기 어려워 공부와 휴식을 미루곤 한다.","누구나 쉬어갈 수 있는 작은 식당 겸 공부방을 꿈꾼다."],"full":"넉넉하지 않지만 서로 아끼는 가족과 지내며, 동화책 읽어주기와 텃밭 가꾸기, 요리를 좋아한다. 밝고 책임감이 강해 주말마다 공동부엌과 나눔터에서 봉사한다. 부탁을 거절하지 못해 자기 공부와 휴식을 미루기도 한다. 작은 동네 식당 겸 공부방을 운영하는 것이 꿈이다."}];
+ const cardFrontPath=(i,k)=>i===2?'./assets/cards/amara-v042/amara_'+String(k).padStart(2,'0')+'.webp':i<2?'./assets/cards/collection-v043/'+['kr','in'][i]+'_'+String(k).padStart(2,'0')+'.webp':null;
+ const cardBackPath=(i,k)=>i<3?'./assets/cards/collection-v043/'+['kr','in','ug'][i]+'_back_'+String(k).padStart(2,'0')+'.svg':null;
  function arcCard(i,k){
-  if(i===2)return '<div class="arc-card-face arc-face-front arc-amara-front"><img class="amara-card-image" src="'+amaraCardPath(k)+'" alt="아마라 '+k+'번 카드" draggable="false"></div><div class="arc-card-face arc-face-back '+(k===8?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark('ug')+'<b>'+(k===8?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
-  const ch=roster[i],gold=k===8,theme=arcThemes[i]?.[0]||'neutral',raw=k===1&&!!ch.image,source=!raw&&!!ch.previewSheet;
-  const art=arcArt(ch,k);
-  return '<div class="arc-card-face arc-face-front '+(source?'arc-source-face':raw?'arc-portrait-face':'arc-unmade-face')+' '+(gold?'is-gold':'')+'">'+art+(raw?'<span class="arc-portrait-name">'+arcEscape(ch.name)+'</span>':'')+'</div>'+
-   '<div class="arc-card-face arc-face-back '+(gold?'is-gold':'')+'"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark(theme)+'<b>'+(gold?'GOLD COLLECTION':'COLLECTION')+'</b></div></div>';
+  const ch=roster[i],front=cardFrontPath(i,k),back=cardBackPath(i,k),gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
+  const img=(src,alt)=>'<img class="arc-complete-art" src="'+arcEscape(src)+'" alt="'+arcEscape(alt)+'" draggable="false">';
+  if(front&&back)return '<div class="arc-card-face arc-face-front arc-complete-face">'+img(front,ch.name+' '+k+'번 앞면')+'</div><div class="arc-card-face arc-face-back arc-complete-face '+(gold?'is-gold':'')+'">'+img(back,ch.name+' '+k+'번 뒷면')+'</div>';
+  return '<div class="arc-card-face arc-face-front">'+arcArt(ch,k)+'</div><div class="arc-card-face arc-face-back"><div class="arc-back-inner"><span>WAGU WAGU</span>'+arcMark(theme)+'</div></div>';
  }
  function arcProfile(i){
-  const ch=roster[i],items=[];
-  if(arcHeld(i,1)){if(ch.age)items.push(ch.age+'세');if(ch.height)items.push(ch.height+'cm');}
-  for(let k=2;k<=8;k++)if(arcHeld(i,k)&&ch.topics?.[k-1])items.push(ch.topics[k-1]);
-  return '<section class="arc-profile"><div class="arc-name"><strong>'+arcEscape(ch.name)+'</strong><span>'+arcEscape(ch.country)+'</span></div><div class="arc-engraving">'+items.map(v=>'<span>'+arcEscape(v)+'</span>').join('')+'</div></section>';
+  const ch=roster[i],p=arcProfiles[i];if(!p)return '<section class="arc-profile"><strong>'+arcEscape(ch.name)+'</strong></section>';
+  const own=k=>arcHeld(i,k),m=p.meta,all=Array.from({length:8},(_,j)=>own(j+1)).every(Boolean);
+  const meta=[m[0],own(1)?m[1]:'',own(1)?m[2]:'',(i===0?own(2):own(1))?m[3]:''].filter(Boolean);
+  const story=all?p.full:p.sent.filter((v,j)=>own(j+1)).join(' ');
+  return '<section class="arc-profile arc-story"><div class="arc-story-meta"><strong>'+arcEscape(meta.shift())+'</strong><span>'+arcEscape(meta.join(' · '))+'</span></div><p class="arc-story-text">'+arcEscape(story)+'</p></section>';
  }
  // v0.2.38: fixed radial geometry, exactly as the approved top-view sketch.
  // Each upright card lies IN a plane through the rotation axis, not a tangent.
  // All projections are orthographic and use the same camera for the deck,
  // grooves, artwork, thin paper edges and the back of the cards.
  const RAD={R:112,inner:15,outer:108,cardInner:18,cardOuter:104,H:129,thick:.52,sin:.42,cos:Math.sqrt(1-.42*.42)};
- let arcLift=0,arcLiftCard=0,arcReturnTimer=0,arcReturning=false;
+ let arcLift=0,arcLiftCard=0,arcReturnTimer=0,arcReturning=false,arcHintSeen=false;
  const radialGeometry=(a,cx,cy,scale=1)=>{
   const sn=Math.sin(a),cs=Math.cos(a);
   const p=(r,h=0,t=0)=>[cx+scale*(sn*r+cs*t),cy+scale*((cs*r-sn*t)*RAD.sin-h*RAD.cos)];
@@ -135,13 +138,8 @@
   if(ch.previewSheet&&r&&size)return '<svg x="0" y="0" width="62" height="112" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid meet" overflow="hidden"><image href="'+arcEscape(ch.previewSheet)+'" x="0" y="0" width="'+size[0]+'" height="'+size[1]+'"/></svg>';
   return '<path d="M31 36L45 56 31 76 17 56Z" fill="none" stroke="#cfc49d" stroke-width=".8"/>';
  }
- const amaraCardPath=k=>'./assets/cards/amara-v042/amara_'+String(k).padStart(2,'0')+'.webp';
- function amaraFront(k){return '<image href="'+amaraCardPath(k)+'" x="0" y="0" width="62" height="112" preserveAspectRatio="none"/>'}
- function arcSvgArt(i,k){return i===2?amaraFront(k):arcOldSvgArt(i,k)}
- function arcSvgBack(i,k){
-  const gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
-  return '<rect width="62" height="112" rx="1.2" fill="'+(gold?'#604b2c':'#193448')+'"/><rect x="3" y="3" width="56" height="106" rx="1.5" fill="none" stroke="'+(gold?'#ffe6a5':'#a9b9ab')+'" stroke-width=".7"/><rect x="5" y="5" width="52" height="102" fill="url(#radBackPattern)" stroke="#c9bc8b" stroke-width=".35"/><g transform="translate(9 35) scale(.44)" color="'+(gold?'#ffe5aa':'#c2d5cb')+'">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</g><text x="31" y="15" fill="#e7d6ac" text-anchor="middle" font-size="4.6" letter-spacing=".65">WAGU WAGU</text><text x="31" y="101" fill="#e7d6ac" text-anchor="middle" font-size="4" letter-spacing=".45">'+(gold?'GOLD COLLECTION':'COLLECTION')+'</text>';
- }
+ function arcSvgArt(i,k){const path=cardFrontPath(i,k);return path?'<image href="'+path+'" width="62" height="112" preserveAspectRatio="none"/>':arcOldSvgArt(i,k)}
+ function arcSvgBack(i,k){const path=cardBackPath(i,k);return path?'<image href="'+path+'" width="62" height="112" preserveAspectRatio="none"/>':'<rect width="62" height="112" fill="#193448"/>'}
  function arcRadialHTML(i,theme){
   let grooves='',cards='';
   for(let k=1;k<=8;k++){
@@ -159,7 +157,7 @@
   return '<div class="arc-root arc-theme-'+theme[0]+'" style="--arc-metal:'+theme[2]+';--arc-accent:'+theme[3]+'">'+
    (arcQA?'<div class="arc-qa" data-arc-page-band>디자인 검수 · 사진 일부 미확정</div>':'')+
    '<div class="arc-page-band" data-arc-page-band><button class="arc-page-arrow" data-home-action="arc-prev" aria-label="이전 수납장" '+(arcPage===0?'disabled':'')+'>‹</button><div class="arc-page-info"><span class="arc-page-dots">'+pages.map((_,j)=>'<i class="'+(j===arcPage?'active':'')+'"></i>').join('')+'</span><span class="arc-count">'+arcCount(i)+' / 8</span></div><button class="arc-page-arrow" data-home-action="arc-next" aria-label="다음 수납장" '+(arcPage===pages.length-1?'disabled':'')+'>›</button></div>'+
-   '<div class="arc-wheel arc-radial-wheel" tabindex="0" aria-label="수납장 좌우 회전, 카드 위로 꺼내기, 배경 좌우 페이지 전환"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div>'+arcRadialHTML(i,theme[0])+'</div>'+
+   '<div class="arc-wheel arc-radial-wheel" tabindex="0" aria-label="수납장 좌우 회전, 카드 위로 꺼내기, 배경 좌우 페이지 전환"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div>'+arcRadialHTML(i,theme[0])+(arcHintSeen?'':'<div class="arc-pull-hint" aria-hidden="true"><svg viewBox="0 0 40 44"><path d="M8 23L20 11L32 23M8 35L20 23L32 35"/></svg><span>카드를 위로 밀어 확대</span></div>')+'</div>'+
    '<div class="arc-page-bottom" data-arc-page-band>'+arcProfile(i)+'</div><div class="arc-viewer" hidden></div></div>';
  }
  function arcCancel(){
@@ -209,8 +207,8 @@
   if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcReturning)return;
   const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
   if(i===undefined||!viewer||!arcHeld(i,k))return;
-  selectedCard=k;arcFlip=false;arcFlipAt=-999;arcLift=0;arcLiftCard=0;arcDraw();viewer.classList.remove('arc-flipped');
-  viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" style="--arc-ratio:'+arcRatio(i,k)+'" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
+  arcHintSeen=true;content.querySelector('.arc-pull-hint')?.remove();selectedCard=k;arcFlip=false;arcFlipAt=-999;arcLift=0;arcLiftCard=0;arcDraw();viewer.classList.remove('arc-flipped');
+  viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" style="--arc-ratio:'+arcRatio(i,k)+'" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button><div class="arc-flip-hint">카드를 터치하면 앞·뒷면 전환</div>';
   viewer.classList.remove('arc-returning');viewer.hidden=false;drawer.classList.add('arc-viewing');
   viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
  }
@@ -404,5 +402,5 @@
  window.__collectionTest={rosterCount:()=>arcPages().length,owned:totalOwned,open:()=>openPanel('album'),select:(i)=>{const j=arcPages().indexOf(i);if(j>=0){arcPage=j;arcYaw=0;renderPanel('album');}},snapshot:()=>({pages:arcPages(),page:arcPage,front:arcFront(),qa:arcQA,owned:totalOwned(),yaw:arcYaw})};
  window.__landHomeTest={getOpen:()=>window.__homeIsOpen,panel:()=>selectedPanel,stats:()=>({best,level:state.level,coins:state.coins,badge:previewBadge(),modelActive:!!window.home3D?.active}),openPanel,enterGame:leaveHome,returnHome:openHome};
  openHome();
- if(arcQA){openPanel('album');if(new URLSearchParams(location.search).get('person')==='amara')window.__collectionTest.select(2);}
+ if(arcQA){openPanel('album');const person=['haena','anika','amara'].indexOf(new URLSearchParams(location.search).get('person'));if(person>=0)window.__collectionTest.select(person);}
 })();
