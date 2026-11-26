@@ -111,12 +111,12 @@
   title.textContent=({character:'캐릭터',shop:'상점',expedition:'탐험',settings:'설정',album:'컬렉션'})[which]||'메뉴';
   let html='';
   if(which==='character'){
-   html=`<div class="banner"><strong>나만의 애벌레</strong><div>중앙 캐릭터를 직접 돌리면 앞·옆·뒷모습을 볼 수 있어.</div></div>
+   html=`<div class="banner"><strong>나만의 애벌레</strong><div>좌우로 밀어 게임 속 애벌레의 방향을 바꿔 봐.</div><canvas id="homeCharacterPreview" aria-label="게임 캐릭터 2D 방향 미리보기" role="img" style="display:block;width:100%;height:clamp(145px,26vh,220px);touch-action:pan-y;cursor:grab"></canvas></div>
    <div class="small-stat"><div><small>현재 레벨</small><b>Lv.${state.level}</b></div><div><small>최대 몸 길이</small><b>${bodyMax()}</b></div></div>
    <h3>영구 보유 · 캐릭터 스킨</h3><div class="skin-grid">${[{id:'peach',label:'기본 복숭아',price:0,color:'#f6c59e'},{id:'mint',label:'민트 꼬물이',price:120,color:'#91cfba'},{id:'coral',label:'핑크 산호',price:180,color:'#f2a1b3'},{id:'gold',label:'황금 꼬물이',price:400,color:'#dfbd76'}].map(x=>`<button class="skin-pick ${state.skins?.equipped===x.id?'chosen':''}" data-home-action="skin-${x.id}"><i style="background:${x.color}"></i><span>${x.label}</span><small>${state.skins?.owned?.includes(x.id)?(state.skins?.equipped===x.id?'장착 중':'장착하기'):x.price+' 코인'}</small></button>`).join('')}</div>
    <h3>꾸미기 미리보기</h3><label class="toggle"><span>✦ 반짝 배지 (미리보기)<br><small>구매·장착 아이템이 아닌 시연 기능</small></span><input type="checkbox" id="homeBadgeSwitch" ${previewBadge()?'checked':''}></label>
    <button type="button" class="home-action" data-home-action="turn-left">↶ 왼쪽 회전</button><button type="button" class="home-action" data-home-action="turn-right">오른쪽 회전 ↷</button>
-   <p class="notice">실제 게임의 확정 캐릭터 PNG는 변경하지 않았어. 중앙 3D 모델은 향후 스킨·배지 장착을 확인하기 위한 첫 입체 시제품이야.</p><button type="button" class="home-action" data-home-action="album">▣ 수집 카드 보기</button>`;
+   <p class="notice">본게임과 같은 2D 얼굴·몸통·진화 색상으로 표시해. 좌우 방향 전환만 가능하며 배지는 미리보기 전용이야.</p><button type="button" class="home-action" data-home-action="album">▣ 수집 카드 보기</button>`;
   }else if(which==='shop'){
    html=`<div class="banner"><strong>탐험 상점</strong><div>보유 <b style="color:#f8daa4">${num(state.coins)} 코인</b> · 강화는 현재 카드 맵에서만 유지돼.</div></div>
    <h3>이번 맵 성장 강화</h3>
