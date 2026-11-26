@@ -1,172 +1,223 @@
-/* True volumetric WebGL caterpillar lobby viewer.
- * Independent of gameplay: does not mutate approved sprite atlas or any save data.
- * Geometry is actual 3D, not a rotated image/billboard. */
+/* WAGU WAGU v0.2.34: 2D lobby/character preview.
+ * Head and body drawing copied from the active gameplay v0.2.13/v0.2.14
+ * renderers at 746989f. Same shapes, skin palette and evolution details.
+ * Preview has its own points and heading; never touches game movement or save.
+ * No WebGL, Work renderer, or pitch/vertical tilt.
+ */
 (function(){
   'use strict';
-  let canvas=document.getElementById('homeModelCanvas');
-  if(!canvas)return;
-  let gl;
-  try{gl=canvas.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:false,depth:true,preserveDrawingBuffer:true});}catch(e){}
-  let software=!gl;
-  let prog;
-  if(gl){
-  const vs=`attribute vec3 aPos;attribute vec3 aNormal;attribute vec3 aColor;
-    uniform mat4 uProj;uniform float uYaw,uPitch,uBob;
-    varying vec3 vN,vColor,vEye;
-    void main(){
-      float c=cos(uYaw),s=sin(uYaw),cp=cos(uPitch),sp=sin(uPitch);
-      vec3 p=vec3(c*aPos.x+s*aPos.z,aPos.y,-s*aPos.x+c*aPos.z);
-      p=vec3(p.x,cp*(p.y-.93)-sp*p.z,sp*(p.y-.93)+cp*p.z);
-      vec3 n=vec3(c*aNormal.x+s*aNormal.z,aNormal.y,-s*aNormal.x+c*aNormal.z);
-      n=vec3(n.x,cp*n.y-sp*n.z,sp*n.y+cp*n.z);
-      p.y+=uBob;
-      vec3 view=vec3(p.x+sin(uYaw)*.48,p.y,p.z-4.65);
-      gl_Position=uProj*vec4(view,1.0);
-      vN=normalize(n);vColor=aColor;vEye=-view;
-    }`;
-  const fs=`precision mediump float;varying vec3 vN,vColor,vEye;
-    void main(){
-      vec3 n=normalize(vN),L=normalize(vec3(-.52,.84,1.15)),v=normalize(vEye);
-      float light=max(0.,dot(n,L)),fill=max(0.,dot(n,normalize(vec3(.80,.10,.45))));
-      float rim=pow(1.-max(0.,dot(n,v)),3.0);
-      float highlight=pow(max(0.,dot(reflect(-L,n),v)),25.0)*.25;
-      vec3 col=vColor*(.64+.34*light+.10*fill)+vec3(.95,.76,.57)*highlight+vec3(.28,.20,.14)*rim*.13;
-      gl_FragColor=vec4(col,1.0);
-    }`;
-  function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
-
-  try{prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vs));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));}
-  catch(e){console.warn('WebGL fallback to software 3D',e);gl=null;software=true;const replacement=canvas.cloneNode(false);canvas.replaceWith(replacement);canvas=replacement;}
-  if(gl){gl.useProgram(prog);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);}
-
-  }
-  const v=[],parts=[];let badgeOffset=0, badgeCount=0;
-  const palette={skin:[1,.766,.55],front:[1,.808,.630],cheek:[1,.700,.59],body:[.975,.754,.538],fold:[.894,.631,.448],white:[1,.992,.960],iris:[.35,.18,.12],pupil:[.071,.044,.046],mouth:[.29,.123,.102],lip:[.81,.434,.303],gold:[1,.796,.388],stem:[.765,.412,.225]};
-  function vert(p,n,c){v.push(p[0],p[1],p[2],n[0],n[1],n[2],c[0],c[1],c[2])}
-  function sphere(cx,cy,cz,rx,ry,rz,col,lat=15,lon=22){
-    parts.push({type:"sphere",cx,cy,cz,rx,ry,rz,col});
-    function point(t,p){let st=Math.sin(t),ct=Math.cos(t),co=Math.cos(p),si=Math.sin(p);const q=[st*co,ct,st*si];return [[cx+q[0]*rx,cy+q[1]*ry,cz+q[2]*rz],[q[0]/rx,q[1]/ry,q[2]/rz]]}
-    for(let y=0;y<lat;y++)for(let x=0;x<lon;x++){
-      const t0=Math.PI*y/lat,t1=Math.PI*(y+1)/lat,p0=x*2*Math.PI/lon,p1=(x+1)*2*Math.PI/lon;
-      const a=point(t0,p0),b=point(t1,p0),c=point(t0,p1),d=point(t1,p1);
-      for(const q of [a,b,c,b,d,c])vert(q[0],q[1],col);
+  const TAU=Math.PI*2, STEP=Math.PI/4;
+  const ellipse=(c,x,y,rx,ry)=>{c.beginPath();c.ellipse(x,y,Math.max(.1,rx),Math.max(.1,ry),0,0,TAU);};
+function topHead(c,x,y,scale,angle,jaw,full,fade=1){
+    c.save();c.globalAlpha*=fade;c.translate(x,y);c.rotate(angle+Math.PI/2);c.scale(scale,scale);
+    const bob=0;
+    c.translate(0,-1.2-jaw*3.6+bob);
+    // Rounded head is part of the continuous body, colored by the same palette.
+    c.shadowColor='rgba(82,43,29,.28)';c.shadowBlur=8;c.shadowOffsetY=3;
+    ellipse(c,0,0,29+full*2,31+jaw*2);const g=c.createRadialGradient(-12,-15,1,1,4,43);
+    g.addColorStop(0,'#fff0d5');g.addColorStop(.42,'#ffdbb6');g.addColorStop(.83,skinTone('head'));g.addColorStop(1,skinTone('dark'));
+    c.fillStyle=g;c.fill();c.shadowBlur=0;c.shadowOffsetY=0;
+    // Cheeks grow with collected bites, physically visible from top view.
+    for(const sign of [-1,1]){
+      ellipse(c,sign*(21+full*3),-2,7.8+full*6.2,12.5+full*5);
+      const cheek=c.createRadialGradient(sign*25,-7,1,sign*22,0,22);
+      cheek.addColorStop(0,'rgba(255,184,160,.92)');cheek.addColorStop(1,'rgba(228,105,105,0)');
+      c.fillStyle=cheek;c.fill();
     }
-  }
-  function tube(points,r,color){
-    parts.push({type:"tube",points,r,col:color});
-    for(let i=0;i<points.length-1;i++){
-      const a=points[i],b=points[i+1];let t=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];const len=Math.hypot(...t)||1;t=t.map(x=>x/len);
-      let u=[t[1],-t[0],0],un=Math.hypot(...u);if(un<.1){u=[0,t[2],-t[1]];un=Math.hypot(...u)}u=u.map(x=>x/un);
-      let w=[t[1]*u[2]-t[2]*u[1],t[2]*u[0]-t[0]*u[2],t[0]*u[1]-t[1]*u[0]];
-      const sides=10;
-      function ring(center,j){const th=j*2*Math.PI/sides,n=u.map((val,k)=>val*Math.cos(th)+w[k]*Math.sin(th));return [center.map((val,k)=>val+n[k]*r),n]}
-      for(let j=0;j<sides;j++){
-        const p=ring(a,j),q=ring(b,j),o=ring(a,j+1),z=ring(b,j+1);
-        for(const k of [p,q,o,q,z,o])vert(k[0],k[1],color);
+    // Two short flexible antennae, deliberately visible in top-down view.
+    c.strokeStyle='#a96653';c.lineWidth=2.7;c.lineCap='round';
+    for(const sign of [-1,1]){
+      c.beginPath();c.moveTo(sign*11,-22);c.quadraticCurveTo(sign*(13+Math.sin(sign)*2),-39,sign*18,-44-jaw*2);c.stroke();
+      ellipse(c,sign*18,-44-jaw*2,4.1,4.6);c.fillStyle='#edac80';c.fill();
+    }
+    // Eyes near the front: small from above, not a pasted frontal face.
+    for(const sign of [-1,1]){
+      ellipse(c,sign*12,-18,5.8,7.0);c.fillStyle='#fff9ec';c.fill();
+      ellipse(c,sign*12,-20,3.2,3.9);c.fillStyle='#513b39';c.fill();
+      ellipse(c,sign*13,-21.5,1.25,1.6);c.fillStyle='#fff';c.fill();
+    }
+    // Thin, single circular whisker around a mouth at the foremost rim.
+    c.strokeStyle='#945c4c';c.lineWidth=1.5;
+    ellipse(c,0,-29-jaw*2,5.8+jaw*4.0,3.6+jaw*4.4);c.stroke();
+    ellipse(c,0,-30-jaw*2,1.5+jaw*5,0.7+jaw*4.5);c.fillStyle='#663f3d';c.fill();
+    if(jaw>.14){ellipse(c,0,-29-jaw*2,1+jaw*2.8,0.6+jaw*2.3);c.fillStyle='#f3a4a3';c.fill();}
+    // A small, blunt forehead horn grows gradually; stage 1 is unmodified.
+    const evo=evolutionStage(),palette=EVOLUTION_COLORS[evo-1];
+    if(evo>=2){
+      const height=[0,0,8,13,18,24][evo],half=2.5+evo*.65;
+      c.save();c.shadowColor=palette.gem;c.shadowBlur=3+evo;
+      c.fillStyle=palette.gem;c.strokeStyle='rgba(150,97,67,.42)';c.lineWidth=.7;
+      c.beginPath();c.moveTo(-half,-6);c.quadraticCurveTo(-half*.8,-11-height*.38,0,-7-height);
+      c.quadraticCurveTo(half*.8,-11-height*.38,half,-6);
+      c.quadraticCurveTo(0,-1, -half,-6);c.closePath();c.fill();c.stroke();c.restore();
+    }
+    // Cute ivory cheek-tusks appear only at stage 3, becoming gently longer.
+    if(evo>=3){
+      const size=[0,0,0,3.5,5.5,8][evo];
+      c.fillStyle=palette.tip;c.strokeStyle='rgba(147,106,80,.26)';c.lineWidth=.7;
+      for(const side of [-1,1]){
+        c.beginPath();c.moveTo(side*25,7);c.quadraticCurveTo(side*(30+size*.36),0,side*(30+size),-2-size*.33);
+        c.quadraticCurveTo(side*(32+size*.4),12,side*25,12);c.closePath();c.fill();c.stroke();
       }
     }
+    c.restore();
   }
-  // All the parts are closed meshes. The back and underside remain volumetric
-  // through a full 360-degree orbit (no paper-thin image transformation).
-  sphere(0,.48,-1.48,.32,.32,.37,palette.body);
-  sphere(0,.47,-1.02,.46,.39,.48,palette.fold);
-  sphere(0,.50,-.79,.58,.46,.62,palette.body);
-  sphere(0,.50,-.33,.73,.53,.70,palette.fold);
-  sphere(0,.52,-.24,.76,.54,.70,palette.front);
-  sphere(0,.84,.52,.78,.84,.77,palette.skin,22,32);
-  // Gentle cheeks, matching the approved peach/cream artwork.
-  sphere(-.55,.52,1.13,.145,.116,.035,palette.cheek);
-  sphere(.55,.52,1.13,.145,.116,.035,palette.cheek);
-  // Large pearly eyes with pupils that have their own curvature from all angles.
-  for(const sign of [-1,1]){
-    sphere(sign*.31,1.20,1.033,.253,.298,.109,palette.lip);
-    sphere(sign*.31,1.216,1.057,.246,.286,.108,palette.white,18,24);
-    sphere(sign*.31,1.170,1.167,.110,.136,.051,palette.iris);
-    sphere(sign*.31,1.170,1.210,.076,.107,.034,palette.pupil);
-    sphere(sign*.295,1.231,1.234,.037,.042,.016,palette.white);
-  }
-  // Signature: TWO subtle, round whisker outlines circling the mouth.
-  // These are 3D raised rings, not a painted smile or a flattened billboard.
-  // Keep the inner mouth SMALL/CLOSED at rest; the ring belongs to the character.
-  sphere(0,.47,1.206,.245,.252,.075,palette.front,20,30);
-  const whiskerRing=(rx,ry,z,r,color)=>{
-    const points=[];
-    for(let k=0;k<=40;k++){
-      const t=k*Math.PI*2/40;
-      points.push([Math.sin(t)*rx,.475+Math.cos(t)*ry,z+.027*Math.cos(t)]);
+  function drawBody(data,c,angle){
+    const {pts}=data,first=pts[0],last=pts[pts.length-1];
+    c.save();c.lineJoin='round';c.lineCap='round';
+    // Underpaint the centerline with overlapping skin capsules. Prevents ANY
+    // transparent interior slots at acute turns or when the head is moving.
+    c.fillStyle=skinTone('base');c.strokeStyle=skinTone('base');
+    for(let i=1;i<pts.length;i++){
+      const p=pts[i-1],q=pts[i];
+      c.beginPath();c.moveTo(p.x,p.y);c.lineTo(q.x,q.y);
+      c.lineWidth=1.88*Math.max(p.r,q.r);c.stroke();
     }
-    tube(points,r,color);
-  };
-  whiskerRing(.235,.235,1.309,.012,palette.mouth);
-  // Two tiny corners and a relaxed, closed smile within the round whisker.
-  tube([[-.090,.464,1.350],[-.046,.451,1.354],[0,.441,1.356],[.046,.451,1.354],[.090,.464,1.350]],.012,palette.mouth);
-  // A curved antenna with a rounded bulb rather than an endlessly flat icon.
-  tube([[.02,1.74,.46],[.04,1.86,.49],[.15,2.04,.52],[.26,2.09,.54]],.056,palette.stem);
-  sphere(.29,2.09,.54,.147,.143,.145,palette.gold);
-  // Small visible side feet under the body.
-  for(const z of [-.54,-1.05])for(const sign of [-1,1])sphere(sign*.53,.13,z,.23,.13,.21,palette.front,11,16);
-  // Future equipment preview: detachable 3D badge (not fake-paid).
-  badgeOffset=v.length/9;
-  sphere(.70,.68,-.42,.105,.18,.20,palette.gold);
-  sphere(.783,.69,-.42,.059,.115,.127,palette.white);
-  badgeCount=v.length/9-badgeOffset;
-  let uProj,uYaw,uPitch,uBob;
-  if(gl){
-  const buff=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buff);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STATIC_DRAW);
-  const stride=9*4;
-  function attrib(name,size,offset){const loc=gl.getAttribLocation(prog,name);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,stride,offset)}
-  attrib('aPos',3,0);attrib('aNormal',3,3*4);attrib('aColor',3,6*4);
-  uProj=gl.getUniformLocation(prog,'uProj');uYaw=gl.getUniformLocation(prog,'uYaw');uPitch=gl.getUniformLocation(prog,'uPitch');uBob=gl.getUniformLocation(prog,'uBob');
+    const area=new Path2D();
+    for(let i=0;i<pts.length;i++){const q=pts[i],x=q.x+q.nx*q.r,y=q.y+q.ny*q.r;
+      if(i===0)area.moveTo(x,y);else area.lineTo(x,y);}
+    area.quadraticCurveTo(last.x+Math.cos(angle)*last.r*.85,last.y+Math.sin(angle)*last.r*.85,last.x-last.nx*last.r,last.y-last.ny*last.r);
+    for(let i=pts.length-2;i>=0;i--){const q=pts[i];area.lineTo(q.x-q.nx*q.r,q.y-q.ny*q.r);}
+    area.quadraticCurveTo(first.x-Math.cos(angle)*first.r,first.y-Math.sin(angle)*first.r,first.x+first.nx*first.r,first.y+first.ny*first.r);
+    area.closePath();
+    const mid=pts[Math.floor(pts.length/2)],r=mid.r;
+    const grad=c.createLinearGradient(mid.x+mid.nx*r,mid.y+mid.ny*r,mid.x-mid.nx*r,mid.y-mid.ny*r);
+    grad.addColorStop(0,'#ffedd5');grad.addColorStop(.27,skinTone('light'));grad.addColorStop(.57,skinTone('base'));grad.addColorStop(1,skinTone('dark'));
+    c.shadowColor='rgba(75,42,30,.25)';c.shadowBlur=6;c.shadowOffsetY=3;c.fillStyle=grad;c.fill(area);
+    c.shadowBlur=0;c.shadowOffsetY=0;
+    c.save();c.clip(area);
+    // Subtle joint creases follow the muscle wave and can never tear the skin.
+    const folds=Math.max(5,Math.min(14,Math.round(data.visibleLength/23)));
+    for(let j=1;j<folds;j++){
+      const q=pts[Math.round(j/(folds)*(pts.length-1))],r=q.r;
+      c.beginPath();c.moveTo(q.x-q.nx*r*.68,q.y-q.ny*r*.68);
+      c.quadraticCurveTo(q.x+Math.cos(angle)*3,q.y+Math.sin(angle)*3,q.x+q.nx*r*.60,q.y+q.ny*r*.60);
+      c.strokeStyle='rgba(151,83,61,.12)';c.lineWidth=1.6;c.stroke();
+    }
+    c.beginPath();for(let i=0;i<pts.length;i++){
+      const q=pts[i],x=q.x+q.nx*q.r*.62,y=q.y+q.ny*q.r*.62;
+      if(!i)c.moveTo(x,y);else c.lineTo(x,y);}
+    c.strokeStyle='rgba(255,250,222,.34)';c.lineWidth=3.3;c.stroke();
+    c.restore();
+    // Draw each stage's color accents and blunt nubs ON the live deformed
+    // spine. Turning, stretching and contracting always carries the details.
+    const evo=evolutionStage(),pal=EVOLUTION_COLORS[evo-1];
+    if(evo>1){
+      const count=evo+2;
+      c.save();c.clip(area);
+      if(evo>=3)for(let j=1;j<=count;j++){
+        const q=pts[Math.round(j/(count+1)*(pts.length-1))];
+        const a=Math.atan2(q.ny,q.nx)+Math.PI/2;
+        c.save();c.translate(q.x,q.y);c.rotate(a);
+        c.strokeStyle=pal.stripe;c.globalAlpha=evo===5?.63:.30+(evo-3)*.12;
+        c.lineWidth=5+evo*1.35;c.lineCap='round';
+        c.beginPath();c.moveTo(-q.r*.72,0);c.quadraticCurveTo(0,-4,q.r*.72,0);c.stroke();c.restore();
+      }
+      c.restore();
+      for(let j=1;j<=count;j++){
+        const q=pts[Math.round(j/(count+1)*(pts.length-1))],size=2.1+evo*1.15;
+        const tx=q.ny,ty=-q.nx;
+        c.save();c.translate(q.x,q.y);c.rotate(Math.atan2(ty,tx)+Math.PI/2);
+        c.fillStyle=pal.gem;c.strokeStyle='rgba(121,77,51,.24)';c.lineWidth=.65;
+        c.beginPath();c.moveTo(0,-size*1.55);c.quadraticCurveTo(size*.86,-size*.3,0,size*.90);
+        c.quadraticCurveTo(-size*.86,-size*.3,0,-size*1.55);c.fill();c.stroke();c.restore();
+        if(evo>=3)for(const side of [-1,1]){
+          const tip=2+(evo-2)*1.65;
+          c.fillStyle=pal.tip;c.beginPath();
+          c.moveTo(q.x+q.nx*side*q.r*.79,q.y+q.ny*side*q.r*.79);
+          c.quadraticCurveTo(q.x+q.nx*side*(q.r+tip*.48)+tx*3,q.y+q.ny*side*(q.r+tip*.48)+ty*3,
+            q.x+q.nx*side*(q.r+tip)+tx*1.5,q.y+q.ny*side*(q.r+tip)+ty*1.5);
+          c.quadraticCurveTo(q.x+q.nx*side*q.r*.73+tx*4,q.y+q.ny*side*q.r*.73+ty*4,
+            q.x+q.nx*side*q.r*.79,q.y+q.ny*side*q.r*.79);c.fill();
+        }
+      }
+    }
+    c.restore();
   }
-  const cpu=software?canvas.getContext('2d',{alpha:true}):null;
-  let yaw=-0.68,pitch=0.035,dragged=false,dragID=null,lastX=0,lastY=0,velocity=0,dirty=true,showBadge=false,frameCount=0;
+
+  const main=document.getElementById('homeModelCanvas');
+  if(!main)return;
+  let yaw=Math.PI/4,target=yaw,showBadge=false,frameCount=0;
+  const bindings=new WeakMap(), cache=new WeakMap();
+  const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+  const setYaw=a=>{if(Number.isFinite(a))target=wrap(a);};
+  const step=d=>setYaw(target+d*Math.PI/2);
+  function points(angle){
+    const dx=Math.cos(angle),dy=Math.sin(angle),nx=-dy,ny=dx,pts=[];
+    for(let i=0;i<=36;i++){
+      const u=i/36,l=-66+98*u,side=8*Math.sin(Math.PI*u);
+      const tangent=8*Math.PI*Math.cos(Math.PI*u)/98;
+      const tx=dx+nx*tangent,ty=dy+ny*tangent,len=Math.hypot(tx,ty)||1;
+      pts.push({u,x:dx*l+nx*side,y:dy*l+ny*side,nx:-ty/len,ny:tx/len,r:7.8+16.7*Math.pow(u,.63)+2.5*Math.sin(Math.PI*u)});
+    }
+    return {pts,visibleLength:98};
+  }
+  function drawOne(canvas){
+    if(!canvas||!canvas.isConnected||canvas.clientWidth<2||canvas.clientHeight<2)return;
+    const w=Math.round(canvas.clientWidth),h=Math.round(canvas.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
+    const W=Math.round(w*dpr),H=Math.round(h*dpr);
+    const evo=evolutionStage(),skin=skinTone('base');
+    const key=[W,H,yaw.toFixed(4),evo,skin,showBadge].join('|');
+    if(cache.get(canvas)===key)return;
+    const c=canvas.getContext('2d',{alpha:true});
+    if(!c)return;
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
+    const scale=Math.min(w/175,h/165)*(.88+(evo-1)*.027);
+    c.save();c.translate(w*.5,h*.5);c.scale(scale,scale*.86);
+    const data=points(yaw),head=data.pts[data.pts.length-1];
+    drawBody(data,c,yaw);
+    topHead(c,head.x,head.y,1,yaw,0,0);
+    if(showBadge){
+      const q=data.pts[18];c.save();c.translate(q.x,q.y);
+      c.fillStyle='#ffdf85';c.strokeStyle='#9d6426';c.lineWidth=1;
+      c.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,r=i%2?3.7:8;const x=Math.cos(a)*r,y=Math.sin(a)*r;if(i===0)c.moveTo(x,y);else c.lineTo(x,y);}c.closePath();c.fill();c.stroke();c.restore();
+    }
+    c.restore();cache.set(canvas,key);frameCount++;
+  }
+  function attachPreview(canvas){
+    if(!canvas||bindings.has(canvas))return;
+    const gesture={id:null,x:0,y:0,horizontal:false};
+    bindings.set(canvas,gesture);
+    canvas.tabIndex=0;
+    canvas.addEventListener('pointerdown',e=>{
+      if(gesture.id!==null||e.button>0)return;
+      gesture.id=e.pointerId;gesture.x=e.clientX;gesture.y=e.clientY;gesture.horizontal=false;
+    });
+    canvas.addEventListener('pointermove',e=>{
+      if(e.pointerId!==gesture.id)return;
+      const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
+      if(!gesture.horizontal){
+        if(Math.abs(dy)>9&&Math.abs(dy)>Math.abs(dx)*1.2){gesture.id=null;return;}
+        if(Math.abs(dx)<5||Math.abs(dx)<Math.abs(dy))return;
+        gesture.horizontal=true;
+        try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+      }
+      setYaw(target+dx*Math.PI/200);gesture.x=e.clientX;gesture.y=e.clientY;
+      if(e.cancelable)e.preventDefault();
+    });
+    function end(e){
+      if(e.pointerId!==gesture.id)return;
+      if(gesture.horizontal)setYaw(Math.round(target/STEP)*STEP);
+      gesture.id=null;gesture.horizontal=false;
+    }
+    for(const n of ['pointerup','pointercancel','lostpointercapture','pointerleave'])canvas.addEventListener(n,e=>{if(n==='pointerleave'&&gesture.horizontal)return;end(e);});
+    canvas.addEventListener('keydown',e=>{
+      if(e.key==='ArrowLeft'||e.key==='ArrowRight'){step(e.key==='ArrowLeft'?-1:1);e.preventDefault();}
+    });
+  }
+  attachPreview(main);
+  window.home3D={active:true,mode:'2d-game-renderer',setBadge(b){showBadge=!!b;},getYaw:()=>target,setYaw,getPitch:()=>0,getFrameCount:()=>frameCount,attachPreview};
   let lastT=0;
-  const model={active:true,setBadge(b){showBadge=!!b},getYaw:()=>yaw,setYaw(a){yaw=a;velocity=0},getPitch:()=>pitch,getFrameCount:()=>frameCount};
-  window.home3D=model;
-  function resize(){const w=Math.max(1,Math.round(canvas.clientWidth)),h=Math.max(1,Math.round(canvas.clientHeight)),dpr=Math.min(1.6,devicePixelRatio||1);const W=Math.round(w*dpr),H=Math.round(h*dpr);if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;if(gl)gl.viewport(0,0,W,H)}}
-  function projection(aspect){const f=1/Math.tan(42*Math.PI/360),near=.1,far=80;return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)/(near-far),-1, 0,0,(2*far*near)/(near-far),0])}
-  function draw(t){requestAnimationFrame(draw);if(document.hidden||!window.__homeIsOpen)return;resize();const dt=Math.min(.05,Math.max(0,(t-lastT)/1000));lastT=t;
-    if(!dragged){yaw+=velocity*dt;velocity*=Math.pow(.05,dt);if(Math.abs(velocity)<.006)velocity=0; if(Math.abs(velocity)<.01)yaw+=dt*.055;}
-    if(gl){
-      gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.uniformMatrix4fv(uProj,false,projection(canvas.width/canvas.height));gl.uniform1f(uYaw,yaw);gl.uniform1f(uPitch,pitch);gl.uniform1f(uBob,Math.sin(t*.0016)*.026);
-      gl.drawArrays(gl.TRIANGLES,0,badgeOffset);if(showBadge)gl.drawArrays(gl.TRIANGLES,badgeOffset,badgeCount);
-    }else softwareDraw(t);
-    frameCount++;
+  function tick(t){
+    requestAnimationFrame(tick);
+    const dt=lastT?Math.min(.05,Math.max(0,(t-lastT)/1000)):1/60;lastT=t;
+    if(document.hidden||!window.__homeIsOpen)return;
+    const delta=wrap(target-yaw);
+    yaw=Math.abs(delta)<.003?target:wrap(yaw+delta*(1-Math.exp(-18*dt)));
+    drawOne(main);
+    const preview=document.getElementById('homeCharacterPreview');
+    if(preview){attachPreview(preview);drawOne(preview);}
   }
-  // Native canvas fallback: still turns actual 3D ellipsoids in depth,
-  // unlike the old flat image that collapsed to a sheet when rotated.
-  function softwareDraw(t){
-    const w=canvas.width,h=canvas.height,c=cpu; if(!c)return;
-    c.clearRect(0,0,w,h);
-    const d=Math.min(w/4.1,h/3.15),centerX=w/2-Math.sin(yaw)*d*.15,centerY=h*.51;
-    const sn=Math.sin(yaw),co=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
-    function rotate(x,y,z){let xx=co*x+sn*z,zz=-sn*x+co*z,yy=y-.93;return [xx,cp*yy-sp*zz,sp*yy+cp*zz]}
-    function proj(x,y,z){let k=(4.65/(4.65-z)),q=d*k;return [centerX+x*q,centerY-y*q+Math.sin(t*.0016)*d*.018,q]}
-    function partZ(p){if(p.type==='sphere')return rotate(p.cx,p.cy,p.cz)[2];return p.points.reduce((sum,q)=>sum+rotate(...q)[2],0)/p.points.length}
-    const visible=parts.filter((p,i)=>showBadge||i<parts.length-2).map(p=>({p,z:partZ(p)})).sort((a,b)=>a.z-b.z);
-    function col(c,a=1){return 'rgba('+c.map(x=>Math.round(x*255)).join(',')+','+a+')'}
-    for(const {p} of visible){
-      if(p.type==='sphere'){
-        const pos=rotate(p.cx,p.cy,p.cz),[px,py,sz]=proj(...pos);
-        const rx=Math.sqrt((p.rx*co)**2+(p.rz*sn)**2)*sz;
-        const ry=Math.sqrt((p.ry*cp)**2+((p.rx*sn+p.rz*co)*sp)**2)*sz;
-        if(rx<=0||ry<=0)continue;
-        c.save();c.beginPath();c.ellipse(px,py,rx,ry,0,0,Math.PI*2);c.clip();
-        const g=c.createRadialGradient(px-rx*.36,py-ry*.43,ry*.02,px+rx*.07,py+ry*.12,Math.max(rx,ry)*1.18);
-        g.addColorStop(0,col(p.col.map(x=>Math.min(1,x*1.17))));g.addColorStop(.5,col(p.col));g.addColorStop(1,col(p.col.map(x=>x*.64)));
-        c.fillStyle=g;c.fillRect(px-rx,py-ry,rx*2,ry*2);c.restore();
-      }else{
-        const pts=p.points.map(q=>proj(...rotate(...q)));
-        c.beginPath();c.moveTo(pts[0][0],pts[0][1]);pts.slice(1).forEach(q=>c.lineTo(q[0],q[1]));
-        c.lineWidth=p.r*2*pts[Math.floor(pts.length/2)][2];c.strokeStyle=col(p.col);c.lineCap='round';c.lineJoin='round';c.stroke();
-      }
-    }
-  }
-  requestAnimationFrame(draw);
-  canvas.addEventListener('pointerdown',e=>{dragged=true;dragID=e.pointerId;lastX=e.clientX;lastY=e.clientY;velocity=0;canvas.setPointerCapture(e.pointerId);e.preventDefault()});
-  canvas.addEventListener('pointermove',e=>{if(e.pointerId!==dragID||!dragged)return;const dx=e.clientX-lastX;lastX=e.clientX;lastY=e.clientY;yaw+=dx*.0125;/* horizontal 360° only: vertical swipe does not tilt the character */velocity=Math.max(-3.4,Math.min(3.4,dx*.045));e.preventDefault()});
-  function end(e){if(e.pointerId!==dragID)return;dragged=false;dragID=null}
-  for(const n of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(n,end);
-  canvas.addEventListener('keydown',e=>{if(e.code==='ArrowLeft'||e.code==='ArrowRight'){yaw+=(e.code==='ArrowLeft'?-1:1)*.22;velocity=0;e.preventDefault()}});
-  canvas.setAttribute('tabindex','0');
+  requestAnimationFrame(tick);
 })();
