@@ -146,7 +146,7 @@
   if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcAnimating)return;
   const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
   if(i===undefined||!viewer||!arcHeld(i,k))return;
-  selectedCard=k;arcFlip=false;viewer.classList.remove('arc-flipped');
+  selectedCard=k;arcFlip=false;arcFlipAt=-999;viewer.classList.remove('arc-flipped');
   viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
   viewer.hidden=false;drawer.classList.add('arc-viewing');
   viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
