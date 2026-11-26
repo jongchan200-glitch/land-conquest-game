@@ -395,7 +395,7 @@ const app=document.getElementById('app'),saveBtn=document.getElementById('saveBt
 if(app&&saveBtn){
  const hud=document.createElement('div');hud.id='wwHud';hud.setAttribute('aria-label','게임 정보');
  hud.innerHTML='<div class="ww-knot" id="wwLevel" aria-label="레벨"><small>Lv.</small><strong id="wwLevelValue">1</strong></div>'+
- '<div class="ww-center"><div class="ww-capture"><strong id="wwCapture">0%</strong><small id="wwZone">1/6</small></div><div class="ww-bites" id="wwBites"></div><div class="ww-stretch" aria-label="몸 길이"><i id="wwStretch"></i></div></div>'+
+ '<div class="ww-center"><div class="ww-capture"><strong id="wwCapture">0%</strong><small id="wwZone">1/6</small></div><div class="ww-bites" id="wwBites"></div><div class="ww-stretch" aria-label="남은 몸 길이"><i id="wwStretch"></i></div></div>'+
  '<div class="ww-side"><div class="ww-hearts" id="wwHearts"><span>♥</span><span>♥</span><span>♥</span></div><button type="button" class="ww-coin ww-coin-help" id="wwCoinHelp" title="코인 보상표 보기" aria-label="코인 획득 규칙 보기"><span class="ww-gold">✦</span><strong id="wwCoins">0</strong></button><div class="ww-side-footer" id="wwSideFooter"><button id="wwPauseBtn" aria-label="일시정지" title="일시정지">Ⅱ</button></div></div>';
  app.appendChild(hud);
  saveBtn.textContent='⌂ 저장';saveBtn.title='저장 후 종료';saveBtn.setAttribute('aria-label','저장 후 홈으로 돌아가기');
@@ -415,8 +415,8 @@ if(app&&saveBtn){
   const used=Math.floor(Number(state.fullness)||0);const box=document.getElementById('wwBites');
   if(box.childElementCount!==total)box.innerHTML=Array.from({length:total},()=>'<i></i>').join('');
   [...box.children].forEach((s,i)=>s.classList.toggle('filled',i<total-used));
-  const progress=(typeof bodyTotal==='number'&&typeof bodyMax==='function')?Math.min(100,bodyTotal/bodyMax()*100):0;
-  const stretch=document.getElementById('wwStretch');stretch.style.width=progress.toFixed(1)+'%';stretch.classList.toggle('danger',progress>83);
+  const progress=(typeof bodyTotal==='number'&&typeof bodyMax==='function')?Math.max(0,Math.min(100,100-bodyTotal/bodyMax()*100)):100;
+  const stretch=document.getElementById('wwStretch');stretch.style.width=progress.toFixed(1)+'%';stretch.classList.toggle('danger',progress<17||(typeof recoil!=='undefined'&&!!recoil));
  };
  try{window.wwUpdateHud()}catch(e){}
 }
