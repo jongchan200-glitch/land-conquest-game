@@ -118,107 +118,163 @@
   for(let k=2;k<=8;k++)if(arcHeld(i,k)&&ch.topics?.[k-1])items.push(ch.topics[k-1]);
   return '<section class="arc-profile"><div class="arc-name"><strong>'+arcEscape(ch.name)+'</strong><span>'+arcEscape(ch.country)+'</span></div><div class="arc-engraving">'+items.map(v=>'<span>'+arcEscape(v)+'</span>').join('')+'</div></section>';
  }
+ // v0.2.38: fixed radial geometry, exactly as the approved top-view sketch.
+ // Each upright card lies IN a plane through the rotation axis, not a tangent.
+ // All projections are orthographic and use the same camera for the deck,
+ // grooves, artwork, thin paper edges and the back of the cards.
+ const RAD={R:148,inner:56,outer:126,cardInner:60,cardOuter:122,H:112,thick:.65,sin:.42,cos:Math.sqrt(1-.42*.42)};
+ let arcLift=0,arcLiftCard=0,arcReturnTimer=0,arcReturning=false;
+ const radialGeometry=(a,cx,cy,scale=1)=>{
+  const sn=Math.sin(a),cs=Math.cos(a);
+  const p=(r,h=0,t=0)=>[cx+scale*(sn*r+cs*t),cy+scale*((cs*r-sn*t)*RAD.sin-h*RAD.cos)];
+  return {sn,cs,p,front:sn<0,depth:cs};
+ };
+ function arcSvgArt(i,k){
+  const ch=roster[i],r=ch.previewRects?.[k-1],size=ch.previewSize;
+  if(k===1&&ch.image)return '<image href="'+arcEscape(ch.image)+'" x="0" y="0" width="62" height="112" preserveAspectRatio="xMidYMid meet"/>';
+  if(ch.previewSheet&&r&&size)return '<svg x="0" y="0" width="62" height="112" viewBox="'+r.join(' ')+'" preserveAspectRatio="xMidYMid meet" overflow="hidden"><image href="'+arcEscape(ch.previewSheet)+'" x="0" y="0" width="'+size[0]+'" height="'+size[1]+'"/></svg>';
+  return '<path d="M31 36L45 56 31 76 17 56Z" fill="none" stroke="#cfc49d" stroke-width=".8"/>';
+ }
+ function arcSvgBack(i,k){
+  const gold=k===8,theme=arcThemes[i]?.[0]||'neutral';
+  return '<rect width="62" height="112" rx="1.2" fill="'+(gold?'#604b2c':'#193448')+'"/><rect x="3" y="3" width="56" height="106" rx="1.5" fill="none" stroke="'+(gold?'#ffe6a5':'#a9b9ab')+'" stroke-width=".7"/><rect x="5" y="5" width="52" height="102" fill="url(#radBackPattern)" stroke="#c9bc8b" stroke-width=".35"/><g transform="translate(9 35) scale(.44)" color="'+(gold?'#ffe5aa':'#c2d5cb')+'">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</g><text x="31" y="15" fill="#e7d6ac" text-anchor="middle" font-size="4.6" letter-spacing=".65">WAGU WAGU</text><text x="31" y="101" fill="#e7d6ac" text-anchor="middle" font-size="4" letter-spacing=".45">'+(gold?'GOLD COLLECTION':'COLLECTION')+'</text>';
+ }
+ function arcRadialHTML(i,theme){
+  let grooves='',cards='';
+  for(let k=1;k<=8;k++){
+   const held=arcHeld(i,k),gold=k===8;
+   grooves+='<g data-rad-groove="'+k+'" data-arc-slot="'+k+'" class="arc-radial-hit" role="img" aria-label="'+(gold?'골드 전용 슬롯':'카드 슬롯')+'"><polygon class="rad-groove-rim" fill="'+(gold?'url(#radGold)':'#98aaa6')+'" stroke="'+(gold?'#ffedbe':'#d1d8c9')+'" stroke-width=".6"/><polygon class="rad-groove-hole" fill="#09161b" stroke="#172529" stroke-width=".6"/></g>';
+   if(held)cards+='<g data-rad-card="'+k+'" data-arc-slot="'+k+'" data-rad-owned="1" class="arc-radial-hit" role="button" tabindex="0" aria-label="'+arcEscape(roster[i].name+' '+(gold?'골드 카드':roster[i].topics?.[k-1]||'수집 카드'))+'"><polygon class="rad-card-edge" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><polygon class="rad-card-top" fill="url(#radPaper)" stroke="#d8c7a5" stroke-width=".25"/><g class="rad-card-face"><rect width="62" height="112" rx="1.2" fill="#182835" stroke="#9c927b" stroke-width=".45"/><g class="rad-art-front">'+arcSvgArt(i,k)+'</g><g class="rad-art-back">'+arcSvgBack(i,k)+'</g></g></g>';
+  }
+  return '<svg class="arc-radial-svg" viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" aria-label="방사형 회전 카드 수납장"><defs><linearGradient id="radMetal" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#15242c"/><stop offset=".22" stop-color="#607b7e"/><stop offset=".46" stop-color="#a8b7a7"/><stop offset=".6" stop-color="#435c62"/><stop offset="1" stop-color="#12232d"/></linearGradient><linearGradient id="radGold"><stop stop-color="#896026"/><stop offset=".32" stop-color="#f6dca0"/><stop offset=".64" stop-color="#b68947"/><stop offset="1" stop-color="#f8df9a"/></linearGradient><linearGradient id="radPaper"><stop stop-color="#c3ab80"/><stop offset=".5" stop-color="#f0e2c6"/><stop offset="1" stop-color="#988b74"/></linearGradient><radialGradient id="radTop" cx=".42" cy=".35" r=".75"><stop stop-color="'+(theme==='in'?'#755d50':theme==='ug'?'#65715b':'#54726e')+'"/><stop offset=".65" stop-color="'+(theme==='in'?'#40323c':theme==='ug'?'#35483f':'#223d4b')+'"/><stop offset="1" stop-color="#102833"/></radialGradient><radialGradient id="radShadow"><stop stop-color="#000" stop-opacity=".65"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="radBackPattern" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6L6 0M-3 3L3 -3M3 9L9 3" stroke="#d6ceaa" stroke-opacity=".13" stroke-width=".4"/></pattern></defs><g class="rad-model"><ellipse class="rad-shadow" cx="0" cy="0" rx="156" ry="24" fill="url(#radShadow)"/><g class="rad-deck" data-rad-rotator="1"><ellipse cx="0" cy="13" rx="148" ry="62.16" fill="#14232c" stroke="#617573" stroke-width="1"/><path d="M-148 0 A148 62.16 0 0 0 148 0 L148 13 A148 62.16 0 0 1 -148 13Z" fill="url(#radMetal)" stroke="#b4b6a0" stroke-width=".6"/><ellipse rx="148" ry="62.16" fill="url(#radTop)" stroke="url(#radGold)" stroke-width="1.4"/><ellipse rx="140" ry="58.8" fill="none" stroke="#b9d0c4" stroke-opacity=".38" stroke-width=".7"/><ellipse rx="132" ry="55.44" fill="none" stroke="#9eaa96" stroke-opacity=".25" stroke-width=".65"/><g class="rad-motif" color="#c5c8a8" opacity=".55"><svg x="-32" y="-32" width="64" height="64" viewBox="0 0 100 100">'+arcMark(theme).replace('<svg viewBox="0 0 100 100"','<svg width="100" height="100" viewBox="0 0 100 100"')+'</svg></g><ellipse rx="37" ry="15.54" fill="none" stroke="#c6bd91" stroke-width=".7"/><g class="rad-ticks">'+Array.from({length:48},(_,j)=>'<line data-rad-tick="'+j+'" stroke="'+(j%6===0?'#d8cfaa':'#9eada7')+'" stroke-opacity="'+(j%6===0?.75:.35)+'" stroke-width=".6"/>').join('')+'</g></g><g class="rad-grooves">'+grooves+'</g><g class="rad-cards">'+cards+'</g></g></svg>';
+ }
  function collectionHTML(){
   const pages=arcPages();
   if(!pages.length)return '<div class="arc-empty-page"><div class="arc-empty-emblem">'+arcMark('neutral')+'</div><div>첫 카드를 기다리는 수납장</div><button data-home-action="arc-exit" class="arc-explore">탐험으로 돌아가기</button></div>';
   arcPage=Math.max(0,Math.min(pages.length-1,arcPage));
-  const i=pages[arcPage],ch=roster[i],theme=arcThemes[i]||['neutral',ch.country,'#d9c49d','#8db1a3'],slots=[];
-  for(let k=1;k<=8;k++){
-   const held=arcHeld(i,k),gold=k===8;
-   slots.push('<div class="arc-slot '+(gold?'arc-gold-slot':'')+'" data-arc-slot="'+k+'" role="'+(held?'button':'img')+'" tabindex="'+(held?'0':'-1')+'" aria-label="'+arcEscape(ch.name)+' '+(gold?'골드 카드':held?(ch.topics?.[k-1]||'수집 카드'):'빈 슬롯')+'"><div class="arc-groove"><i></i>'+(gold?'<b>✦</b>':'')+'</div>'+(held?'<div class="arc-card-object" style="--arc-ratio:'+arcRatio(i,k)+'">'+arcCard(i,k)+'</div>':'')+'</div>');
-  }
+  const i=pages[arcPage],ch=roster[i],theme=arcThemes[i]||['neutral',ch.country,'#d9c49d','#8db1a3'];
   return '<div class="arc-root arc-theme-'+theme[0]+'" style="--arc-metal:'+theme[2]+';--arc-accent:'+theme[3]+'">'+
-   (arcQA?'<div class="arc-qa">디자인 검수 · 예시 카드</div>':'')+
+   (arcQA?'<div class="arc-qa" data-arc-page-band>디자인 검수 · 예시 카드</div>':'')+
    '<div class="arc-page-band" data-arc-page-band><button class="arc-page-arrow" data-home-action="arc-prev" aria-label="이전 수납장" '+(arcPage===0?'disabled':'')+'>‹</button><div class="arc-page-info"><span class="arc-page-dots">'+pages.map((_,j)=>'<i class="'+(j===arcPage?'active':'')+'"></i>').join('')+'</span><span class="arc-count">'+arcCount(i)+' / 8</span></div><button class="arc-page-arrow" data-home-action="arc-next" aria-label="다음 수납장" '+(arcPage===pages.length-1?'disabled':'')+'>›</button></div>'+
-   '<div class="arc-wheel" tabindex="0" aria-label="회전식 카드 수납장, 좌우로 돌리기"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div><div class="arc-floor-shadow"></div><div class="arc-scene"><div class="arc-orbit"><div class="arc-deck" aria-hidden="true">'+Array.from({length:12},(_,j)=>'<i class="arc-deck-layer" style="--layer:'+j+'"></i>').join('')+'<div class="arc-deck-top"><div class="arc-deck-inner"></div>'+arcMark(theme[0])+'</div>'+Array.from({length:48},(_,j)=>'<i class="arc-edge-tile" style="--edge-angle:'+j*7.5+'deg;--edge-j:'+j+'"></i>').join('')+'</div>'+slots.join('')+'</div></div></div>'+
+   '<div class="arc-wheel arc-radial-wheel" tabindex="0" aria-label="수납장 좌우 회전, 카드 위로 꺼내기, 배경 좌우 페이지 전환"><div class="arc-gallery-halo"></div><div class="arc-gallery-rays"></div>'+arcRadialHTML(i,theme[0])+'</div>'+
    '<div class="arc-page-bottom" data-arc-page-band>'+arcProfile(i)+'</div><div class="arc-viewer" hidden></div></div>';
  }
  function arcCancel(){
-  clearTimeout(arcStop);cancelAnimationFrame(arcFrame);arcStop=0;arcFrame=0;arcDrag=null;arcPageDrag=null;arcAnimating=false;
+  clearTimeout(arcStop);cancelAnimationFrame(arcFrame);clearTimeout(arcReturnTimer);arcStop=0;arcFrame=0;arcDrag=null;arcPageDrag=null;arcAnimating=false;arcReturning=false;arcLift=0;arcLiftCard=0;
  }
  function arcDraw(){
-  const wheel=content.querySelector('.arc-wheel');if(!wheel)return;
+  const wheel=content.querySelector('.arc-wheel'),svg=wheel?.querySelector('.arc-radial-svg');if(!svg)return;
   const w=wheel.clientWidth,h=wheel.clientHeight;if(w<2||h<2)return;
-  // All objects share the same 3D origin and camera. A slot is a tangent
-  // to the circle: card width is below the non-intersection limit 2R*tan(22.5°).
-  const r=Math.min(w*.325,142,h*.265),cardW=r*.74,deckR=r*1.17;
-  const maxCardH=cardW/.67,foot=Math.min(h*.70,Math.max(h*.54,(h+maxCardH*.84)/2-7));
-  wheel.style.setProperty('--arc-radius',r+'px');
-  wheel.style.setProperty('--arc-card-w',cardW+'px');
-  wheel.style.setProperty('--arc-deck-size',(deckR*2)+'px');
-  wheel.style.setProperty('--arc-deck-radius',deckR+'px');
-  wheel.style.setProperty('--arc-edge-width',(2*Math.PI*deckR/48+.65)+'px');
-  wheel.style.setProperty('--arc-origin-y',foot+'px');
-  const orbit=wheel.querySelector('.arc-orbit');
-  if(orbit)orbit.style.transform='rotateY('+arcYaw+'rad)';
-  for(const el of wheel.querySelectorAll('[data-arc-slot]')){
-   const k=Number(el.dataset.arcSlot),a=(k-1)*arcStep;
-   el.style.transform='translate3d('+(Math.sin(a)*r).toFixed(3)+'px,0px,'+(Math.cos(a)*r).toFixed(3)+'px) rotateY('+a+'rad)';
-   el.style.zIndex='auto';
-   el.classList.toggle('arc-front-slot',k===arcFront());
+  const scale=Math.min(w/330,h/278),cx=w*.5,cy=h*.5+scale*35;
+  svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  svg.querySelector('.rad-model').setAttribute('transform','translate('+cx+' '+cy+') scale('+scale+')');
+  svg.querySelector('.rad-shadow').setAttribute('cy','68');
+  svg.querySelector('.rad-motif').setAttribute('transform','scale(1 '+RAD.sin+') rotate('+(arcYaw*180/Math.PI)+')');
+  const poly=(p,arr)=>arr.map(v=>p(...v).map(x=>x.toFixed(3)).join(',')).join(' ');
+  const geom=k=>radialGeometry(arcYaw+(k-1)*arcStep,0,0);
+  for(const e of svg.querySelectorAll('[data-rad-tick]')){
+   const a=arcYaw+Number(e.dataset.radTick)*arcTau/48,g=radialGeometry(a,0,0);
+   const q=g.p(135),r=g.p(139);
+   e.setAttribute('x1',q[0]);e.setAttribute('y1',q[1]);e.setAttribute('x2',r[0]);e.setAttribute('y2',r[1]);
+  }
+  for(const e of svg.querySelectorAll('[data-rad-groove]')){
+   const k=Number(e.dataset.radGroove),{p}=geom(k),t=k===8?5:3.1;
+   e.querySelector('.rad-groove-rim').setAttribute('points',poly(p,[[RAD.inner,0,-t],[RAD.outer,0,-t],[RAD.outer,0,t],[RAD.inner,0,t]]));
+   e.querySelector('.rad-groove-hole').setAttribute('points',poly(p,[[58.5,0,-1.25],[123.5,0,-1.25],[123.5,0,1.25],[58.5,0,1.25]]));
+  }
+  const layer=svg.querySelector('.rad-cards'),ordered=[...layer.querySelectorAll('[data-rad-card]')].map(e=>({e,k:Number(e.dataset.radCard),g:geom(Number(e.dataset.radCard))})).sort((a,b)=>a.g.depth-b.g.depth);
+  for(const {e,k,g} of ordered){
+   const {sn,cs,p,front}=g,H=RAD.H,t=RAD.thick,lo=RAD.cardInner,hi=RAD.cardOuter;
+   const start=front?hi:lo,sign=front?-1:1,side=front?1:-1;
+   const pos=p(start,H,side*t);
+   const face=e.querySelector('.rad-card-face');
+   face.setAttribute('transform','matrix('+(Math.abs(sn)).toFixed(6)+' '+(sign*cs*RAD.sin).toFixed(6)+' 0 '+RAD.cos.toFixed(6)+' '+pos[0].toFixed(3)+' '+pos[1].toFixed(3)+')');
+   face.setAttribute('visibility',Math.abs(sn)<.006?'hidden':'visible');
+   e.querySelector('.rad-art-front').setAttribute('visibility',front?'visible':'hidden');
+   e.querySelector('.rad-art-back').setAttribute('visibility',front?'hidden':'visible');
+   const edge=cs>=0?hi:lo;
+   e.querySelector('.rad-card-edge').setAttribute('points',poly(p,[[edge,0,-t],[edge,0,t],[edge,H,t],[edge,H,-t]]));
+   e.querySelector('.rad-card-top').setAttribute('points',poly(p,[[lo,H,-t],[hi,H,-t],[hi,H,t],[lo,H,t]]));
+   e.setAttribute('transform','translate(0 '+(k===arcLiftCard?-arcLift/scale:0)+')');
+   // Draw the tiny paper edge last so it remains visible at exactly 0 degrees.
+   e.appendChild(e.querySelector('.rad-card-edge'));e.appendChild(e.querySelector('.rad-card-top'));
+   layer.appendChild(e);
   }
  }
  function arcShow(k){
-  if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcAnimating)return;
+  if(selectedPanel!=='album'||drawer.hidden||arcDrag||arcReturning)return;
   const i=arcPerson(),viewer=content.querySelector('.arc-viewer');
   if(i===undefined||!viewer||!arcHeld(i,k))return;
-  selectedCard=k;arcFlip=false;arcFlipAt=-999;viewer.classList.remove('arc-flipped');
+  selectedCard=k;arcFlip=false;arcFlipAt=-999;arcLift=0;arcLiftCard=0;arcDraw();viewer.classList.remove('arc-flipped');
   viewer.innerHTML='<button class="arc-view-close" data-home-action="arc-close-card" aria-label="카드 감상 닫기">×</button><button class="arc-view-card" style="--arc-ratio:'+arcRatio(i,k)+'" aria-label="카드 앞뒷면 뒤집기"><div class="arc-view-object">'+arcCard(i,k)+'</div></button>';
-  viewer.hidden=false;drawer.classList.add('arc-viewing');
+  viewer.classList.remove('arc-returning');viewer.hidden=false;drawer.classList.add('arc-viewing');
   viewer.querySelector('.arc-view-card')?.focus({preventScroll:true});
  }
- function arcClose(){
+ function arcClose(immediate=false){
   const v=content.querySelector('.arc-viewer');if(!v||v.hidden)return false;
-  v.hidden=true;v.innerHTML='';arcFlip=false;drawer.classList.remove('arc-viewing');return true;
+  if(arcReturning&&!immediate)return true;
+  clearTimeout(arcReturnTimer);
+  const finish=()=>{v.hidden=true;v.innerHTML='';v.classList.remove('arc-returning');arcFlip=false;arcReturning=false;arcLift=0;arcLiftCard=0;drawer.classList.remove('arc-viewing');arcDraw();};
+  if(immediate){finish();return true;}
+  arcReturning=true;v.classList.add('arc-returning');arcReturnTimer=setTimeout(finish,300);return true;
  }
- function arcSettle(target,open=true){
+ function arcSettle(target){
   clearTimeout(arcStop);cancelAnimationFrame(arcFrame);
-  const from=arcYaw,delta=target-from,begin=performance.now();arcAnimating=true;
+  const from=arcYaw,delta=target-from,begin=performance.now(),duration=300+Math.min(300,Math.abs(delta)*170);arcAnimating=true;
   const frame=t=>{
-   const q=Math.min(1,Math.max(0,(t-begin)/420));arcYaw=from+delta*(1-Math.pow(1-q,3));arcDraw();
+   const q=Math.min(1,Math.max(0,(t-begin)/duration));arcYaw=from+delta*(1-Math.pow(1-q,3));arcDraw();
    if(q<1){arcFrame=requestAnimationFrame(frame);return;}
-   arcYaw=target;arcAnimating=false;arcDraw();
-   if(open)arcStop=setTimeout(()=>arcShow(arcFront()),430);
+   arcYaw=((target%arcTau)+arcTau)%arcTau;arcAnimating=false;arcDraw();
   };
   arcFrame=requestAnimationFrame(frame);
  }
  function arcMovePage(delta){
   const pages=arcPages(),next=Math.max(0,Math.min(pages.length-1,arcPage+delta));
   if(next===arcPage)return;
-  arcCancel();arcClose();arcPage=next;arcYaw=0;renderPanel('album');
+  arcCancel();arcClose(true);arcPage=next;arcYaw=0;renderPanel('album');
  }
  function arcWire(){
   arcCancel();drawer.classList.remove('arc-viewing');const wheel=content.querySelector('.arc-wheel');if(!wheel)return;
   arcDraw();requestAnimationFrame(()=>{if(selectedPanel==='album'&&!drawer.hidden)arcDraw();});
   wheel.addEventListener('pointerdown',e=>{
-   if(e.button>0||arcDrag)return;
-   clearTimeout(arcStop);cancelAnimationFrame(arcFrame);arcAnimating=false;
-   arcDrag={id:e.pointerId,x:e.clientX,y:e.clientY,from:arcYaw,moved:false,lastX:e.clientX,lastT:performance.now(),velocity:0,slot:e.target.closest('[data-arc-slot]')?.dataset.arcSlot};
+   if(e.button>0||arcDrag||arcReturning)return;
+   cancelAnimationFrame(arcFrame);arcAnimating=false;
+   const card=e.target.closest('[data-rad-card]'),hit=e.target.closest('[data-arc-slot],[data-rad-rotator]');
+   arcDrag={id:e.pointerId,x:e.clientX,y:e.clientY,from:arcYaw,mode:null,kind:hit?'wheel':'page',slot:card?Number(card.dataset.radCard):0,lastX:e.clientX,lastT:performance.now(),velocity:0};
    try{wheel.setPointerCapture(e.pointerId);}catch(_){}
   });
   wheel.addEventListener('pointermove',e=>{
-   if(!arcDrag||e.pointerId!==arcDrag.id)return;
-   const dx=e.clientX-arcDrag.x,dy=e.clientY-arcDrag.y;
-   if(Math.abs(dx)>6&&Math.abs(dx)>Math.abs(dy)*.7)arcDrag.moved=true;
-   if(!arcDrag.moved)return;
-   const now=performance.now(),elapsed=Math.max(8,now-arcDrag.lastT);arcDrag.velocity=arcDrag.velocity*.45+((e.clientX-arcDrag.lastX)/elapsed)*.55;arcDrag.lastX=e.clientX;arcDrag.lastT=now;
-   arcYaw=arcDrag.from+dx*arcTau/Math.max(360,wheel.clientWidth*1.35);arcDraw();e.preventDefault();
+   const d=arcDrag;if(!d||e.pointerId!==d.id)return;
+   const dx=e.clientX-d.x,dy=e.clientY-d.y;
+   if(!d.mode&&Math.hypot(dx,dy)>8){
+    if(Math.abs(dx)>Math.abs(dy)*1.15)d.mode=d.kind==='wheel'?'rotate':'page';
+    else if(Math.abs(dy)>Math.abs(dx)*1.15)d.mode=d.slot&&dy<0?'lift':'ignore';
+   }
+   if(d.mode==='rotate'){
+    const now=performance.now(),elapsed=Math.max(8,now-d.lastT);d.velocity=d.velocity*.4+((e.clientX-d.lastX)/elapsed)*.6;d.lastX=e.clientX;d.lastT=now;
+    arcYaw=d.from+dx*arcTau/Math.max(310,wheel.clientWidth*1.20);arcDraw();e.preventDefault();
+   }else if(d.mode==='lift'){
+    arcLiftCard=d.slot;arcLift=Math.min(96,Math.max(0,-dy*.85));arcDraw();e.preventDefault();
+   }else if(d.mode==='page')e.preventDefault();
   });
   const end=e=>{
-   if(!arcDrag||e.pointerId!==arcDrag.id)return;
-   const d=arcDrag;arcDrag=null;
-   if(e.type!=='pointerup'){arcSettle(Math.round(arcYaw/arcStep)*arcStep,false);return;}
-   if(d.moved){const v=performance.now()-d.lastT<100?d.velocity:0,glide=Math.max(-arcStep,Math.min(arcStep,v*.26));arcSettle(Math.round((arcYaw+glide)/arcStep)*arcStep);return;}
-   if(d.slot){
-    const k=Number(d.slot),base=-(k-1)*arcStep;
-    const target=base+Math.round((arcYaw-base)/arcTau)*arcTau;
-    arcSettle(target);
+   const d=arcDrag;if(!d||e.pointerId!==d.id)return;
+   arcDrag=null;const dx=e.clientX-d.x,dy=e.clientY-d.y;
+   if(e.type==='pointerup'){
+    if(d.mode==='rotate'){
+     const v=performance.now()-d.lastT<120?d.velocity:0;
+     // No 45-degree snapping: free stop is necessary to see a card face.
+     arcSettle(arcYaw+Math.max(-1.35,Math.min(1.35,v*.31)));return;
+    }
+    if(d.mode==='lift'&&dy< -38){arcShow(d.slot);return;}
+    if(d.mode==='page'&&Math.abs(dx)>45){arcMovePage(dx<0?1:-1);return;}
    }
+   arcLift=0;arcLiftCard=0;arcDraw();
   };
   for(const type of ['pointerup','pointercancel','lostpointercapture'])wheel.addEventListener(type,end);
   wheel.addEventListener('keydown',e=>{
-   if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();arcSettle(Math.round(arcYaw/arcStep)*arcStep+(e.key==='ArrowLeft'?arcStep:-arcStep));}
-   if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();const k=Number(e.target.closest('[data-arc-slot]')?.dataset.arcSlot)||arcFront();const base=-(k-1)*arcStep;arcSettle(base+Math.round((arcYaw-base)/arcTau)*arcTau);}
+   if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();arcSettle(arcYaw+(e.key==='ArrowLeft'?arcStep:-arcStep));}
+   if(e.key==='ArrowUp'||e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();const slot=e.target.closest('[data-rad-card]');if(slot)arcShow(Number(slot.dataset.radCard));}
   });
   for(const band of content.querySelectorAll('[data-arc-page-band]')){
    band.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};try{band.setPointerCapture(e.pointerId)}catch(_){}});
@@ -226,9 +282,15 @@
    band.addEventListener('pointercancel',()=>arcPageDrag=null);
   }
   const viewer=content.querySelector('.arc-viewer');
-  viewer?.addEventListener('click',e=>{if(e.target.closest('.arc-view-card')){if(performance.now()-arcFlipAt<300)return;arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}else if(e.target===viewer)arcClose();});
-  viewer?.addEventListener('pointerdown',e=>{if(e.target.closest('.arc-view-card'))arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};});
-  viewer?.addEventListener('pointerup',e=>{if(arcPageDrag?.id===e.pointerId&&Math.abs(e.clientX-arcPageDrag.x)>38){arcFlipAt=performance.now();arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}arcPageDrag=null;});
+  viewer?.addEventListener('click',e=>{if(arcReturning||performance.now()-arcFlipAt<350)return;if(e.target.closest('.arc-view-card')){arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}else if(e.target===viewer)arcClose();});
+  viewer?.addEventListener('pointerdown',e=>{if(e.target.closest('.arc-view-card')){arcPageDrag={id:e.pointerId,x:e.clientX,y:e.clientY};try{viewer.setPointerCapture(e.pointerId)}catch(_){}}});
+  viewer?.addEventListener('pointerup',e=>{
+   if(arcPageDrag?.id!==e.pointerId)return;
+   const dx=e.clientX-arcPageDrag.x,dy=e.clientY-arcPageDrag.y;arcPageDrag=null;
+   if(dy>40&&Math.abs(dy)>Math.abs(dx)){arcFlipAt=performance.now();arcClose();}
+   else if(Math.abs(dx)>38&&Math.abs(dx)>Math.abs(dy)){arcFlipAt=performance.now();arcFlip=!arcFlip;viewer.classList.toggle('arc-flipped',arcFlip);}
+  });
+  viewer?.addEventListener('pointercancel',()=>arcPageDrag=null);
  }
  window.addEventListener('resize',()=>{if(selectedPanel==='album'&&!drawer.hidden)arcDraw();});
  function renderPanel(which=selectedPanel){
